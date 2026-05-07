@@ -219,9 +219,23 @@ def extract_years_from_level(level_str: str) -> float:
     return float(match.group(1)) if match else 0.0
 
 async def parse_resume_with_ai(resume_text: str, job_id: int, job_description: str = "", required_experience: str = "") -> dict:
-    """
-    Parse resume using direct OpenAI call with injection protection.
-    """
+    # Detection for unreadable/scanned PDFs
+    if "SCANNED_PDF_DETECTED" in resume_text:
+        return {
+            "is_resume": False,
+            "candidate_name": None,
+            "email": None,
+            "phone_number": None,
+            "skills": ["Unreadable Document"],
+            "experience": 0,
+            "experience_level": "N/A",
+            "summary": "This document appears to be a scanned image or is otherwise unreadable by the AI. Please ask the candidate to provide a text-based PDF or Word document for a full analysis.",
+            "score": 0.0,
+            "match_percentage": 0,
+            "extraction_degraded": True,
+            "reasoning": "Document contains no extractable text (likely a scanned image)."
+        }
+
     sanitized_resume = sanitize_ai_input(resume_text, "Resume Upload")
     
     prompt = f"""

@@ -3,12 +3,19 @@ import docx
 import io
 
 def parse_pdf(file) -> str:
-    """Extract text from a PDF file."""
+    """Extract text from a PDF file with scanned document detection."""
     try:
         pdf_reader = pypdf.PdfReader(file)
         text = ""
+        has_pages = len(pdf_reader.pages) > 0
         for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
+            page_text = page.extract_text() or ""
+            text += page_text + "\n"
+        
+        # If we have pages but absolutely no text was extracted, it's likely a scanned image
+        if has_pages and not text.strip():
+            return "ERROR: SCANNED_PDF_DETECTED - The document appears to be a scanned image or contains no selectable text."
+            
         return text
     except Exception as e:
         return f"Error parsing PDF: {str(e)}"

@@ -10,13 +10,15 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 @router.get("", response_model=list[NotificationResponse])
 def get_my_notifications(
+    skip: int = 0,
+    limit: int = 50,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all notifications for current user"""
+    """Get notifications for current user with pagination"""
     notifications = db.query(Notification).filter(
         Notification.user_id == current_user.id
-    ).order_by(Notification.created_at.desc()).all()
+    ).order_by(Notification.created_at.desc()).offset(skip).limit(limit).all()
     return notifications
 
 @router.put("/{notification_id}/read")

@@ -224,23 +224,30 @@ def get_interview_reports(
 
         for app in applications:
             try:
+                # Defensive check for related objects
+                if not app:
+                    continue
+                    
                 interview = app.interview
                 report = interview.report if interview else None
                 job = app.job
                 
                 # 1. Build Profile
                 candidate_profile = {
-                    "candidate_name": app.candidate_name if app else "Unknown",
-                    "candidate_email": app.candidate_email if app else "N/A",
+                    "candidate_name": app.candidate_name if app.candidate_name else "Unknown",
+                    "candidate_email": app.candidate_email if app.candidate_email else "N/A",
                     "applied_role": job.title if job else "N/A",
                     "experience_level": "N/A",
                     "primary_skill": "general",
                     "skills": [],
                 }
-                if app and app.resume_extraction:
-                    candidate_profile["experience_level"] = app.resume_extraction.experience_level or "N/A"
-                    candidate_profile["primary_skill"] = app.resume_extraction.extracted_skills or "general"
-                    candidate_profile["skills"] = (app.resume_extraction.extracted_skills or "").split(",")
+                
+                # Safe access to resume extraction
+                resume = getattr(app, 'resume_extraction', None)
+                if resume:
+                    candidate_profile["experience_level"] = resume.experience_level or "N/A"
+                    candidate_profile["primary_skill"] = resume.extracted_skills or "general"
+                    candidate_profile["skills"] = (resume.extracted_skills or "").split(",")
 
                 # 2. Extract Q&A metrics
                 question_evaluations = []
@@ -248,8 +255,9 @@ def get_interview_reports(
                 
                 behavioral_scores = []
                 technical_scores = []
+                
                 if interview:
-                    # Use pre-fetched data
+                    # Use pre-fetched data from maps if available, otherwise fallback
                     interview_questions = all_questions_map.get(interview.id, [])
                     for q in interview_questions:
                         ans = all_answers_map.get(q.id)
@@ -304,38 +312,36 @@ def get_interview_reports(
                                 technical_scores.append(ans.answer_score or 0 if ans else 0)
                             question_evaluations.append(entry)
 
-                # Fallback to detailed_feedback if no questions found
-                if not question_evaluations and not aptitude_evals and hasattr(report, 'detailed_feedback') and report.detailed_feedback:
+                # Fallback to detailed_feedback if no questions found (legacy/report only)
+                if not question_evaluations and not aptitude_evals and report and hasattr(report, 'detailed_feedback') and report.detailed_feedback:
                     try:
                         raw_feedback = report.detailed_feedback
-                        if raw_feedback == "[DECRYPTION_ERROR]":
-                            feedback_data = {}
-                        else:
+                        if raw_feedback != "[DECRYPTION_ERROR]":
                             try:
                                 feedback_data = json.loads(raw_feedback) if isinstance(raw_feedback, str) else raw_feedback
                             except:
                                 feedback_data = {}
-                        
-                        feedback_list = []
-                        if isinstance(feedback_data, dict):
-                            feedback_list = feedback_data.get("question_evaluations", [])
-                        elif isinstance(feedback_data, list):
-                            feedback_list = feedback_data
-                        
-                        for idx, q_data in enumerate(feedback_list):
-                            q_type = q_data.get("question_type", "technical").lower()
-                            entry = {
-                                "question": q_data.get("question", ""),
-                                "answer": q_data.get("answer", ""),
-                                "evaluation": q_data.get("evaluation", {}),
-                                "score": q_data.get("score", q_data.get("evaluation", {}).get("overall", 0)),
-                                "question_number": q_data.get("question_number", idx + 1),
-                                "question_type": q_type
-                            }
-                            if q_type == "aptitude":
-                                aptitude_evals.append(entry)
-                            else:
-                                question_evaluations.append(entry)
+                            
+                            feedback_list = []
+                            if isinstance(feedback_data, dict):
+                                feedback_list = feedback_data.get("question_evaluations", [])
+                            elif isinstance(feedback_data, list):
+                                feedback_list = feedback_data
+                            
+                            for idx, q_data in enumerate(feedback_list):
+                                q_type = q_data.get("question_type", "technical").lower()
+                                entry = {
+                                    "question": q_data.get("question", ""),
+                                    "answer": q_data.get("answer", ""),
+                                    "evaluation": q_data.get("evaluation", {}),
+                                    "score": q_data.get("score", q_data.get("evaluation", {}).get("overall", 0)),
+                                    "question_number": q_data.get("question_number", idx + 1),
+                                    "question_type": q_type
+                                }
+                                if q_type == "aptitude":
+                                    aptitude_evals.append(entry)
+                                else:
+                                    question_evaluations.append(entry)
                     except:
                         pass
 
@@ -352,42 +358,68 @@ def get_interview_reports(
 
                 apt_score = (apt_correct / apt_qty * 10) if apt_qty > 0 else 0
 
-                # 4. Construct Final Response (Unified for Real & Skeleton reports)
-                created = report.created_at if report else interview.created_at
+                # 4. Construct Final Response with Safe Timestamps
+                created = None
+                if report and hasattr(report, 'created_at') and report.created_at:
+                    created = report.created_at
+                elif interview and hasattr(interview, 'created_at') and interview.created_at:
+                    created = interview.created_at
+                else:
+                    created = app.applied_at
+                
+                # Identification Fallbacks
+                report_id = report.id if report else (f"skel_{interview.id}" if interview else f"app_{app.id}")
+                interview_id = interview.id if interview else None
+                test_id = interview.test_id if interview else None
+                filename = f"report_{interview.id}.json" if interview else f"app_{app.id}.json"
+                video_url = f"/api/interviews/{interview.id}/video-stream" if (interview and hasattr(interview, 'video_recording_path') and interview.video_recording_path) else None
+
                 reports.append({
-                    "id": report.id if report else f"skel_{interview.id}",
-                    "interview_id": interview.id,
-                    "filename": f"report_{interview.id}.json",
-                    "test_id": interview.test_id,
+                    "id": report_id,
+                    "interview_id": interview_id,
+                    "filename": filename,
+                    "test_id": test_id,
                     "timestamp": created.isoformat() if created else "",
                     "display_date": created.strftime("%Y-%m-%d %H:%M:%S") if created else "",
                     "display_date_short": created.strftime("%b %d, %Y") if created else "",
-                    "status": app.status if app else interview.status,
-                    "overall_score": report.overall_score if (report and report.overall_score is not None) else (interview.overall_score or 0),
-                    "final_score": report.combined_score if (report and report.combined_score is not None) else (interview.overall_score or 0),
+                    "status": app.status if app else (interview.status if interview else "unknown"),
+                    "overall_score": float(report.overall_score if (report and report.overall_score is not None) else (interview.overall_score if (interview and interview.overall_score is not None) else 0)),
+                    "final_score": float(report.combined_score if (report and report.combined_score is not None) else (interview.overall_score if (interview and interview.overall_score is not None) else 0)),
                     "technical_score": float(tech_avg if tech_s else (report.technical_skills_score if (report and report.technical_skills_score is not None) else 0)),
                     "behavioral_score": float(beh_avg if beh_s else (report.behavioral_score if (report and report.behavioral_score is not None) else 0)),
                     "aptitude_score": float(apt_score if apt_qty > 0 else (report.aptitude_score if (report and report.aptitude_score is not None) else 0)),
-                    "total_questions_answered": len([e for e in question_evaluations if e["answer"]]),
+                    "total_questions_answered": len([e for e in question_evaluations if e.get("answer")]),
                     "aptitude_questions_answered": apt_qty,
                     "question_evaluations": question_evaluations,
                     "aptitude_question_evaluations": aptitude_evals,
                     "candidate_profile": candidate_profile,
                     "recommendation": report.recommendation if report else "consider",
-                    "video_url": f"/api/interviews/{interview.id}/video-stream" if interview.video_recording_path else None,
-                    "assigned_hr_id": app.hr_id if app else None,
-                    "assigned_hr_name": app.hr.full_name if app and app.hr else "Unknown",
-                    "is_owner": (app.hr_id == current_user.id) if app else False,
-                    "termination_reason": report.termination_reason if report else None
+                    "video_url": video_url,
+                    "assigned_hr_id": app.hr_id,
+                    "assigned_hr_name": app.hr.full_name if (hasattr(app, 'hr') and app.hr) else "Unknown",
+                    "is_owner": (app.hr_id == current_user.id) if (current_user and hasattr(current_user, 'id')) else False,
+                    "termination_reason": getattr(report, 'termination_reason', None)
                 })
             except Exception as e:
-                import traceback
-                error_detail = str(e)
-                logger.warning(f"[REPORTS][SKIPPED] Interview {interview.id} could not be processed: {error_detail}")
-                # Log traceback at debug level to avoid cluttering info/warning logs in production
-                logger.debug(f"[REPORTS][TRACEBACK] {traceback.format_exc()}")
+                # Log specific error and keep going
+                logger.warning(f"[REPORTS][SKIPPED] Application record failed processing: {str(e)}")
                 failed_count += 1
                 continue
+
+
+        # Final sort - newest first by timestamp
+        reports.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        
+        logger.info(f"[REPORTS] Successfully processed {len(reports)} records for HR {current_user.id} ({failed_count} errors)")
+        
+        return {
+            "reports": reports,
+            "total": total,
+            "count": len(reports),
+            "failed": failed_count,
+            "pages": (total + limit - 1) // limit if limit > 0 else 1
+        }
+
 
 
         # Final sort - newest first by timestamp (avoiding mixed type ID comparison crash)
@@ -409,8 +441,10 @@ def get_interview_reports(
         logger.error(traceback.format_exc())
         return {
             "reports": [],
+            "total": 0,
             "count": 0,
-            "failed": 0
+            "failed": 0,
+            "pages": 0
         }
 
 @router.get("/interviews")

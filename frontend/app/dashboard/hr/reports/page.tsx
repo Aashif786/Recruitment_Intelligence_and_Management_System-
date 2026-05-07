@@ -797,7 +797,7 @@ export default function ReportsPage() {
                       <DatePicker
                         label="From"
                         value={fromDate}
-                        onChange={(newValue) => setFromDate(newValue)}
+                        onChange={(newValue: Dayjs | null) => setFromDate(newValue)}
                         slotProps={{
                           textField: {
                             size: 'small',
@@ -811,7 +811,7 @@ export default function ReportsPage() {
                       <DatePicker
                         label="To"
                         value={toDate}
-                        onChange={(newValue) => setToDate(newValue)}
+                        onChange={(newValue: Dayjs | null) => setToDate(newValue)}
                         slotProps={{
                           textField: {
                             size: 'small',
@@ -889,7 +889,7 @@ export default function ReportsPage() {
                     }}>
                       <DateCalendar
                         value={dateFilter ? dayjs(dateFilter) : null}
-                        onChange={(newValue) => setDateFilter(newValue?.toDate())}
+                        onChange={(newValue: Dayjs | null) => setDateFilter(newValue?.toDate())}
                       />
                     </Box>
                   </div>
