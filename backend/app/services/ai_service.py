@@ -912,6 +912,7 @@ async def transcribe_audio(audio_file_path: str) -> str:
                 return ""
                 
             logger.info(f"Sending audio to Groq Whisper: {filename} ({file_size} bytes)")
+            with open(audio_file_path, "rb") as audio_file:
                 # Passing as a tuple (filename, file_object) is robust for format detection in Whisper APIs
                 transcript = await ai_client.client.audio.transcriptions.create(
                     file=(filename, audio_file),
