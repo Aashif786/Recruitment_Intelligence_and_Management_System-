@@ -52,7 +52,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Ticket {
     id: number
-    interview_id: number
+    interview_id: number | null
     application_id: number | null
     test_id: string | null
     job_id: number | null
@@ -90,6 +90,9 @@ export default function HRTicketsPage() {
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize, setPageSize] = useState(10)
 
+    // Reset page when filter changes
+    useEffect(() => { setCurrentPage(1) }, [filter])
+
     const endpoint = filter === 'feedback' 
         ? `/api/tickets/feedback?limit=${pageSize}&skip=${(currentPage - 1) * pageSize}` 
         : `/api/tickets?status=${filter}&limit=${pageSize}&skip=${(currentPage - 1) * pageSize}`
@@ -101,62 +104,58 @@ export default function HRTicketsPage() {
 
 
     const handleResolve = async (ticketId: number, action: 'reissue_key' | 'resolve' | 'dismissed' | 'reply') => {
-        // Only 'reply' strictly requires a message for clarity.
-        // 'reissue_key', 'resolve' and 'dismissed' can be done without a message if the HR chooses.
         if (!hrResponse.trim() && action === 'reply') {
-            toast.error("Please provide a response message for the candidate explaining the resolution.")
+            toast.error("Please type a response message before sending a reply.")
             return
         }
 
         const actionFn = () => APIClient.put(`/api/tickets/${ticketId}/resolve`, {
             hr_response: hrResponse,
-            action: action,
+            action,
             send_email: sendEmail
         })
 
-        let successMsg = "Ticket resolved";
-        if (action === 'reissue_key') successMsg = "Key re-issued and ticket resolved";
-        else if (action === 'reply') successMsg = "Reply sent to candidate";
+        const successMsgs: Record<string, string> = {
+            reissue_key: '🔑 Interview key re-issued — candidate can retake.',
+            reply: '✉️ Reply sent to candidate.',
+            resolve: '✅ Ticket resolved.',
+            dismissed: '🚫 Ticket dismissed.',
+        }
 
         setIsResolving(true)
         try {
             await performMutation<any>(
-                `/api/tickets?status=${filter}`,
+                endpoint,          // ← use exact SWR key so the cache actually refreshes
                 mutate,
                 actionFn,
                 {
                     lockKey: `ticket-${ticketId}`,
                     optimisticData: (current) => {
-                        const defaultResp = { items: [], total: 0 };
-                        const data = current || defaultResp;
-                        
-                        // If it's a simple reply, don't remove it from the pending list
+                        const data = current || { items: [], total: 0 }
                         if (action === 'reply' && filter === 'pending') {
                             return {
                                 ...data,
-                                items: data.items.map((t: Ticket) => t.id === ticketId ? {
-                                    ...t,
-                                    hr_response: hrResponse || t.hr_response,
-                                } : t)
-                            };
+                                items: data.items.map((t: Ticket) =>
+                                    t.id === ticketId ? { ...t, hr_response: hrResponse || t.hr_response } : t
+                                )
+                            }
                         }
-
                         if (filter === 'pending') {
-                            const newItems = data.items.filter((t: Ticket) => t.id !== ticketId);
-                            return { ...data, items: newItems, total: data.total - (data.items.length - newItems.length) };
-                        } else {
-                            return {
-                                ...data,
-                                items: data.items.map((t: Ticket) => t.id === ticketId ? {
-                                    ...t,
-                                    status: (action === 'dismissed' ? 'dismissed' : action === 'reply' ? 'pending' : 'resolved') as Ticket['status'],
-                                    hr_response: hrResponse || t.hr_response,
-                                } : t)
-                            };
+                            const newItems = data.items.filter((t: Ticket) => t.id !== ticketId)
+                            return { ...data, items: newItems, total: data.total - 1 }
+                        }
+                        return {
+                            ...data,
+                            items: data.items.map((t: Ticket) =>
+                                t.id === ticketId
+                                    ? { ...t, status: action === 'dismissed' ? 'dismissed' : action === 'reply' ? 'pending' : 'resolved', hr_response: hrResponse || t.hr_response }
+                                    : t
+                            )
                         }
                     },
-                    successMessage: successMsg,
-                    invalidateKeys: ['/api/analytics/dashboard']
+                    successMessage: successMsgs[action] || 'Done.',
+                    // Invalidate sidebar badge + analytics
+                    invalidateKeys: ['/api/tickets/count', '/api/analytics/dashboard']
                 }
             )
             setSelectedTicket(null)
@@ -243,7 +242,7 @@ export default function HRTicketsPage() {
                                     <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors group cursor-pointer relative">
                                         <div className="col-span-2 flex gap-0.5">
                                             {[1, 2, 3, 4, 5].map(star => (
-                                                <Star key={star} className={`h-4 w-4 ${star <= fb.ui_ux_rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/20'}`} />
+                                                <Star key={star} className={`h-4 w-4 ${star <= fb.ui_ux_rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40'}`} />
                                             ))}
                                         </div>
                                         <div className="col-span-3 min-w-0">
@@ -273,47 +272,53 @@ export default function HRTicketsPage() {
             ) : (
                 <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                     {/* List Header */}
-                    <div className="grid grid-cols-12 gap-4 px-0 py-3 bg-muted/50 border-b border-border text-xs uppercase tracking-widest font-black text-muted-foreground">
-                        <div className="col-span-1 text-center">ID</div>
+                    <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border text-xs uppercase tracking-widest font-black text-muted-foreground">
+                        <div className="col-span-1 text-center">#</div>
                         <div className="col-span-2">Type</div>
                         <div className="col-span-3">Candidate</div>
-                        <div className="col-span-4">Issue Description</div>
-                        <div className="col-span-1 text-center">Date</div>
+                        <div className="col-span-3">Issue Description</div>
+                        <div className="col-span-2 text-center">Status</div>
+                        <div className="col-span-1 text-right">Date</div>
                     </div>
                     <div className="divide-y divide-border/50">
                         {tickets.map((ticket) => (
-                            <Tooltip key={ticket.id}>
-                                <TooltipTrigger asChild>
-                                    <div 
-                                        onClick={() => setSelectedTicket(ticket)}
-                                        className="grid grid-cols-12 gap-4 px-0 py-4 items-center hover:bg-muted/30 transition-all cursor-pointer group"
-                                    >
-                                        <div className="col-span-1 flex justify-center">
-                                            {ticket.id}
-                                        </div>
-                                        <div className="col-span-2">
-                                            <Badge variant="outline" className={`text-xs font-black uppercase px-2 py-0 border-none ${getIssueTypeBadge(ticket.issue_type)}`}>
-                                                {ticket.issue_type.replace('_', ' ')}
-                                            </Badge>
-                                        </div>
-                                        <div className="col-span-3 min-w-0">
-                                            <div className="font-bold text-base truncate">{ticket.candidate_name}</div>
-                                            <div className="text-sm text-muted-foreground truncate">{ticket.candidate_email}</div>
-                                        </div>
-                                        <div className="col-span-4">
-                                            <p className="text-sm text-muted-foreground line-clamp-1 pr-4">
-                                                "{ticket.description}"
-                                            </p>
-                                        </div>
-                                        <div className="col-span-1 text-center text-xs font-medium text-muted-foreground">
-                                            {new Date(ticket.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                        </div>
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    Click to open ticket
-                                </TooltipContent>
-                            </Tooltip>
+                            <div
+                                key={ticket.id}
+                                onClick={() => { setSelectedTicket(ticket); setHrResponse(ticket.hr_response || '') }}
+                                className="grid grid-cols-12 gap-4 px-4 py-4 items-center hover:bg-muted/30 transition-all cursor-pointer group"
+                            >
+                                <div className="col-span-1 flex justify-center text-sm font-bold text-muted-foreground">
+                                    {ticket.id}
+                                </div>
+                                <div className="col-span-2">
+                                    <Badge variant="outline" className={`text-xs font-black uppercase px-2 py-0 border-none ${getIssueTypeBadge(ticket.issue_type)}`}>
+                                        {ticket.issue_type.replace(/_/g, ' ')}
+                                    </Badge>
+                                </div>
+                                <div className="col-span-3 min-w-0">
+                                    <div className="font-bold text-base truncate">{ticket.candidate_name}</div>
+                                    <div className="text-xs text-muted-foreground truncate">{ticket.candidate_email}</div>
+                                </div>
+                                <div className="col-span-3">
+                                    <p className="text-sm text-muted-foreground line-clamp-2 pr-2">
+                                        {ticket.description}
+                                    </p>
+                                </div>
+                                <div className="col-span-2 flex justify-center">
+                                    {ticket.status === 'pending' && (
+                                        <Badge className="bg-amber-100 text-amber-700 border-amber-200 border font-bold text-xs">Pending</Badge>
+                                    )}
+                                    {ticket.status === 'resolved' && (
+                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border font-bold text-xs">{ticket.is_reissue_granted ? '🔑 Re-issued' : '✓ Resolved'}</Badge>
+                                    )}
+                                    {ticket.status === 'dismissed' && (
+                                        <Badge className="bg-slate-100 text-slate-500 border-slate-200 border font-bold text-xs">Dismissed</Badge>
+                                    )}
+                                </div>
+                                <div className="col-span-1 text-right text-xs font-medium text-muted-foreground">
+                                    {new Date(ticket.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </div>
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -396,36 +401,45 @@ export default function HRTicketsPage() {
                         <>
                             <div className="space-y-6 px-6 py-4 max-h-[70vh] overflow-y-auto min-w-0">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/50 p-6 rounded-2xl border border-border/50">
-                                    <div className="space-y-1 min-w-0">
+                                    {/* LEFT: Candidate Info */}
+                                    <div className="space-y-2 min-w-0">
                                         <Label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Candidate</Label>
                                         <div className="flex items-center gap-2 font-bold text-xl truncate">
                                             <User className="h-6 w-6 text-primary flex-shrink-0" />
                                             <span className="truncate">{selectedTicket.candidate_name}</span>
                                         </div>
-                                        <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1 overflow-hidden">
-                                            <Badge variant="secondary" className="px-2 py-0.5 text-xs font-bold flex-shrink-0">CANDIDATE ID: {selectedTicket.test_id || 'N/A'}</Badge>
-                                            <span className="flex items-center gap-1.5 truncate">
-                                                <Mail className="h-4 w-4 flex-shrink-0" />
-                                                <span className="truncate">{selectedTicket.candidate_email}</span>
-                                            </span>
+                                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground truncate">
+                                            <Mail className="h-4 w-4 flex-shrink-0" />
+                                            <span className="truncate">{selectedTicket.candidate_email}</span>
                                         </div>
+                                        {selectedTicket.test_id && (
+                                            <Badge variant="secondary" className="text-xs font-bold w-fit">
+                                                Interview ID: {selectedTicket.test_id}
+                                            </Badge>
+                                        )}
                                     </div>
-                                    <div className="space-y-1 min-w-0">
-                                        <Label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Position & Timing</Label>
-                                        <div className="flex items-center gap-2 font-bold text-xl text-foreground truncate">
-                                            {selectedTicket.application_id ? (
-                                                <Link href={`/dashboard/hr/applications/${selectedTicket.application_id}`}>
-                                                    <Badge variant="outline" className="border-primary/30 text-primary hover:bg-primary/5 transition-colors cursor-pointer font-black px-3 py-1 truncate max-w-full text-sm">
-                                                        CANDIDATE ID: {selectedTicket.job_identifier || selectedTicket.application_id}
-                                                    </Badge>
+                                    {/* RIGHT: Job / Application Links */}
+                                    <div className="space-y-2 min-w-0">
+                                        <Label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Job Position</Label>
+                                        {selectedTicket.job_identifier ? (
+                                            <Badge variant="outline" className="border-primary/30 text-primary font-black px-3 py-1 w-fit text-sm">
+                                                {selectedTicket.job_identifier}
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="border-muted text-muted-foreground font-black px-3 py-1 w-fit text-sm">Unknown Job</Badge>
+                                        )}
+                                        {selectedTicket.application_id && (
+                                            <div>
+                                                <Link
+                                                    href={`/dashboard/hr/applications/${selectedTicket.application_id}`}
+                                                    onClick={() => setSelectedTicket(null)}
+                                                    className="text-xs text-primary underline underline-offset-2 font-semibold hover:opacity-70 transition-opacity"
+                                                >
+                                                    View Candidate Application →
                                                 </Link>
-                                            ) : (
-                                                <Badge variant="outline" className="border-muted text-muted-foreground font-black px-3 py-1 text-sm">
-                                                    CANDIDATE ID: N/A
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium mt-1 truncate">
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
                                             <Clock className="h-4 w-4 text-primary/70 flex-shrink-0" />
                                             {new Date(selectedTicket.created_at).toLocaleString()}
                                         </div>
@@ -437,8 +451,8 @@ export default function HRTicketsPage() {
                                         <AlertCircle className="h-4 w-4 text-destructive" />
                                         Issue Description
                                     </Label>
-                                    <div className="p-6 bg-card rounded-2xl border-2 border-border/50 italic text-foreground text-base leading-relaxed shadow-sm max-w-full overflow-hidden break-words">
-                                        "{selectedTicket.description}"
+                                    <div className="p-6 bg-card rounded-2xl border-2 border-border/50 text-foreground font-medium text-base leading-relaxed shadow-sm max-w-full overflow-hidden break-words">
+                                        {selectedTicket.description}
                                     </div>
                                 </div>
 
@@ -456,7 +470,7 @@ export default function HRTicketsPage() {
                                                 value={hrResponse}
                                                 onChange={(e) => setHrResponse(e.target.value)}
                                             />
-                                            <p className="text-xs text-muted-foreground italic">This response will be sent to the candidate's email.</p>
+                                            <p className="text-xs text-muted-foreground">This response will be sent to the candidate's email.</p>
                                         </div>
 
                                         <div className="flex items-center space-x-2 bg-primary/5 p-3 rounded-xl border border-primary/10">
@@ -491,46 +505,60 @@ export default function HRTicketsPage() {
                                     </div>
                                 )}
                             </div>
-                            <DialogFooter className="flex flex-col sm:flex-row gap-3 p-6 border-t bg-muted/20">
+                            <DialogFooter className="p-4 sm:p-6 border-t bg-muted/20">
                                 {selectedTicket.status === 'pending' ? (
-                                    <div className="flex flex-wrap gap-3 w-full justify-end">
+                                    <div className="flex flex-wrap gap-2 w-full">
                                         <Button
-                                            className="font-bold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-xl h-12 px-8 text-white flex-1 sm:flex-none"
-                                            onClick={() => handleResolve(selectedTicket.id, 'reply')}
-                                            disabled={isResolving}
-                                        >
-                                            <Send className="h-4 w-4 mr-2" />
-                                            Send Reply
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            className="font-bold border-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 rounded-xl h-12 px-6 flex-1 sm:flex-none"
+                                            variant="ghost"
+                                            className="flex-1 min-w-[120px] font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-xl h-12 px-3 transition-all"
                                             onClick={() => handleResolve(selectedTicket.id, 'dismissed')}
                                             disabled={isResolving}
                                         >
                                             <XCircle className="h-4 w-4 mr-2" />
                                             Dismiss
                                         </Button>
+
                                         <Button
                                             variant="outline"
-                                            className="font-bold border-2 border-primary/20 hover:border-primary text-primary rounded-xl h-12 px-6 flex-1 sm:flex-none"
+                                            className="flex-1 min-w-[120px] font-bold border-2 border-primary/10 hover:border-primary/40 hover:bg-primary/5 text-primary rounded-xl h-12 px-3 transition-all active:scale-95"
+                                            onClick={() => handleResolve(selectedTicket.id, 'reply')}
+                                            disabled={isResolving || !hrResponse.trim()}
+                                        >
+                                            <Send className="h-4 w-4 mr-2" />
+                                            Reply
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 min-w-[120px] font-bold border-2 border-primary/20 hover:border-primary text-primary rounded-xl h-12 px-3 transition-all active:scale-95"
                                             onClick={() => handleResolve(selectedTicket.id, 'resolve')}
                                             disabled={isResolving}
                                         >
                                             <CheckCircle2 className="h-4 w-4 mr-2" />
-                                            Resolve Only
+                                            Resolve
                                         </Button>
-                                        <Button
-                                            className="font-bold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 rounded-xl h-12 px-8 text-white flex-1 sm:flex-none"
-                                            onClick={() => handleResolve(selectedTicket.id, 'reissue_key')}
-                                            disabled={isResolving}
-                                        >
-                                            <RotateCcw className="h-4 w-4 mr-2" />
-                                            Re-issue Key & Resolve
-                                        </Button>
+
+                                        {selectedTicket.interview_id && (
+                                            <Button
+                                                className="flex-[2] min-w-[180px] font-bold bg-primary hover:bg-primary/90 text-white shadow-md rounded-xl h-12 px-4 transition-all active:scale-95 animate-in fade-in slide-in-from-right-2 duration-500"
+                                                onClick={() => handleResolve(selectedTicket.id, 'reissue_key')}
+                                                disabled={isResolving}
+                                            >
+                                                <RotateCcw className="h-4 w-4 mr-2" />
+                                                Re-issue & Resolve
+                                            </Button>
+                                        )}
                                     </div>
                                 ) : (
-                                    <Button onClick={() => setSelectedTicket(null)} className="w-full font-bold h-12 rounded-xl">Close</Button>
+                                    <div className="flex items-center justify-between w-full gap-4">
+                                        <div className="text-sm text-muted-foreground">
+                                            {selectedTicket.status === 'resolved' ? '✅ This ticket has been resolved.' : '🚫 This ticket was dismissed.'}
+                                            {selectedTicket.resolved_at && (
+                                                <span className="ml-1">({new Date(selectedTicket.resolved_at).toLocaleDateString()})</span>
+                                            )}
+                                        </div>
+                                        <Button onClick={() => setSelectedTicket(null)} className="font-bold h-12 rounded-xl px-8">Close</Button>
+                                    </div>
                                 )}
                             </DialogFooter>
                         </>

@@ -48,12 +48,12 @@
   --secondary: oklch(0.94 0.01 250);
   --secondary-foreground: oklch(0.35 0.02 250);
 
-  --muted: oklch(0.94 0.01 250);
-  --muted-foreground: oklch(0.55 0.02 250);
+  --muted: oklch(0.92 0.01 250);
+  --muted-foreground: oklch(0.40 0.02 250);
 
-  /* Accent = Subtle energetic blue */
-  --accent: oklch(0.55 0.15 250);
-  --accent-foreground: oklch(0.99 0.01 250);
+  /* Accent = Subtle energetic blue - lightened for visibility on hover */
+  --accent: oklch(0.92 0.02 250);
+  --accent-foreground: oklch(0.28 0.02 250);
 
   --destructive: oklch(0.55 0.18 25);
   --destructive-foreground: oklch(0.99 0.02 250);

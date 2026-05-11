@@ -93,7 +93,7 @@ export function UserNav() {
                             {settings?.company_logo_url ? (
                                 <img src={settings.company_logo_url} className="h-full w-full object-contain" alt="Logo Fallback" />
                             ) : (
-                                <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary">
+                                <div className="h-full w-full flex items-center justify-center bg-primary/25 text-primary shadow-inner">
                                     {initials}
                                 </div>
                             )}

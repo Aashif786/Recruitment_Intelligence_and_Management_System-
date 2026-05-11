@@ -300,7 +300,7 @@ export function PipelineBoard({ jobId }: { jobId?: string }) {
                                                         alt={app.candidate.full_name}
                                                         className="object-cover"
                                                     />
-                                                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                                                    <AvatarFallback className="bg-primary/25 text-primary font-bold text-xs shadow-inner">
                                                         {app.candidate.full_name?.charAt(0)}
                                                     </AvatarFallback>
                                                 </Avatar>
