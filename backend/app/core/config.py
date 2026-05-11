@@ -105,6 +105,15 @@ class Settings(BaseSettings):
     # redis://host:6379/0 — shared idempotency + X-Request-ID replay across workers
     redis_url: str = ""
     # Clamp idempotency marker + ephemeral replay TTLs (seconds); Redis and in-memory fallback both honor this band.
+
+    # LinkedIn Auto-Post Integration
+    enable_linkedin_posting: bool = False
+    linkedin_access_token: str = ""
+    linkedin_organization_id: str = ""
+    linkedin_client_id: str = ""
+    linkedin_client_secret: str = ""
+    linkedin_redirect_uri: str = ""
+
     idempotency_ttl_min_seconds: int = 60
     idempotency_ttl_max_seconds: int = 120
     ai_observability_enabled: bool = True

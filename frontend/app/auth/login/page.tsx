@@ -290,6 +290,20 @@ function LoginContent() {
           </form>
 
           <motion.div
+             initial={{ opacity: 0, y: 20 }}
+             animate={{ opacity: 1, y: 0 }}
+             transition={{ duration: 0.5, delay: 0.35 }}
+             className="pt-4"
+          >
+            <a 
+              href="http://localhost:10000/auth/linkedin/login"
+              className="w-full h-12 flex items-center justify-center gap-2 rounded-xl shadow-lg transition-all active:scale-[0.98] border border-[#0A66C2] text-[#0A66C2] font-bold hover:bg-[#0A66C2]/5"
+            >
+              Login with LinkedIn
+            </a>
+          </motion.div>
+
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.4 }}

@@ -13,11 +13,18 @@
 */
 
 @layer base {
-  html, body {
-    @apply overflow-x-hidden max-w-full;
-    width: 100%;
-    height: 100%;
-    overflow-y: hidden;
+  html {
+    overflow: hidden !important;
+    height: 100% !important;
+  }
+  
+  body {
+    overflow: hidden !important;
+    height: 100% !important;
+    width: 100% !important;
+    margin: 0;
+    padding: 0;
+    position: fixed; /* Extra guard against body scrolling */
   }
 }
 
@@ -41,12 +48,12 @@
   --secondary: oklch(0.94 0.01 250);
   --secondary-foreground: oklch(0.35 0.02 250);
 
-  --muted: oklch(0.94 0.01 250);
-  --muted-foreground: oklch(0.55 0.02 250);
+  --muted: oklch(0.92 0.01 250);
+  --muted-foreground: oklch(0.40 0.02 250);
 
-  /* Accent = Subtle energetic blue */
-  --accent: oklch(0.55 0.15 250);
-  --accent-foreground: oklch(0.99 0.01 250);
+  /* Accent = Subtle energetic blue - lightened for visibility on hover */
+  --accent: oklch(0.92 0.02 250);
+  --accent-foreground: oklch(0.28 0.02 250);
 
   --destructive: oklch(0.55 0.18 25);
   --destructive-foreground: oklch(0.99 0.02 250);
@@ -220,9 +227,31 @@
     animation-delay: 4s;
   }
 
+  /* ── Scrollbar nuclear option ──────────────────────────────────────
+     Suppress native scrollbars on every layout shell element.
+     The ONLY element allowed to scroll is the dashboard content area.
+  ──────────────────────────────────────────────────────────────── */
+  [data-slot="sidebar-wrapper"],
+  [data-slot="sidebar-container"],
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar"],
+  [data-slot="sidebar-inner"],
+  [data-sidebar="sidebar"] {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE/Edge */
+  }
+  [data-slot="sidebar-wrapper"]::-webkit-scrollbar,
+  [data-slot="sidebar-container"]::-webkit-scrollbar,
+  [data-slot="sidebar"]::-webkit-scrollbar,
+  [data-slot="sidebar-inner"]::-webkit-scrollbar,
+  [data-sidebar="sidebar"]::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+  }
+
   /* App shell / background utilities */
   .app-shell {
-    @apply min-h-screen w-full bg-background text-foreground overflow-x-hidden relative;
+    @apply h-screen w-full bg-background text-foreground overflow-hidden relative;
   }
 
   .app-shell-gradient {

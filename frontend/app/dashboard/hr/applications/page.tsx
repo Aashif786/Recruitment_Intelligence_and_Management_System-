@@ -450,7 +450,7 @@ export default function HRApplicationsPage() {
                       alt={app.candidate_name || 'Candidate'}
                       className="object-cover"
                     />
-                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-base">
+                    <AvatarFallback className="bg-primary/25 text-primary font-bold text-base shadow-inner">
                       {(app.candidate_name || 'U').charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>

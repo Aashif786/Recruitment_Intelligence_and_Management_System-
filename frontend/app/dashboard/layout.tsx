@@ -106,18 +106,20 @@ export default function DashboardLayout({
       }}
     >
       <SidebarProvider>
-        <div className="flex h-full w-full bg-transparent relative overflow-hidden">
+        {/* SidebarProvider div uses flex-1 min-h-0 so it properly fills the flex-col parent (ScrollContainer <main>) */}
+        <div className="flex flex-1 min-h-0 w-full bg-transparent relative overflow-hidden">
           {/* subtle inner background for dashboard content */}
           <div className="pointer-events-none absolute inset-0 z-0 opacity-80">
-            <div className="absolute inset-0 bg-gradient-to-br from-background/90 via-background/80 to-background/95" />
+            <div className="absolute inset-0 bg-background/95" />
           </div>
 
           <AppSidebar />
 
-          <div className="flex-1 flex flex-col h-full relative z-10 transition-all duration-300">
-
-            <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
-              <div className="max-w-[1600px] mx-auto w-full h-full">
+          {/* Right panel: flex-1 min-h-0 so it shrinks properly; overflow-hidden clips children */}
+          <div className="flex-1 min-h-0 flex flex-col relative z-10 transition-all duration-300 overflow-hidden">
+            {/* Single scroll zone - this is the ONLY element that scrolls */}
+            <div className="flex-1 min-h-0 p-4 md:p-6 lg:p-8 overflow-y-auto overflow-x-hidden">
+              <div className="max-w-[1600px] mx-auto w-full">
                 {children}
               </div>
             </div>

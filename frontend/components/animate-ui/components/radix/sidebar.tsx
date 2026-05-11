@@ -139,7 +139,7 @@ function SidebarProvider({
             } as React.CSSProperties
           }
           className={cn(
-            'group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full',
+            'group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex flex-1 min-h-0 w-full',
             className,
           )}
           {...props}
@@ -615,7 +615,7 @@ function SidebarMenuButton({
   return (
     <Tooltip side="right" align="center">
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent hidden={state !== 'collapsed' || isMobile} {...tooltip} />
+      {state === 'collapsed' && !isMobile && <TooltipContent {...tooltip} />}
     </Tooltip>
   );
 }

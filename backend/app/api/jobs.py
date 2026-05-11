@@ -474,7 +474,20 @@ def create_job(
         cand_service = CandidateService(db)
         cand_service.create_audit_log(current_user.id, "JOB_CREATED", "Job", new_job.id, {"title": new_job.title}, is_critical=True)
         db.commit() # Ensure log is persisted
-        
+
+        # ── LinkedIn Auto-Post (non-blocking, optional) ──────────────────────
+        # Runs AFTER full DB commit. Any failure is caught inside the service
+        # and logged — job creation always succeeds regardless.
+        from app.services.linkedin_service import post_job_to_linkedin
+        post_job_to_linkedin(
+            job_id=new_job.job_id,
+            title=new_job.title,
+            location=new_job.location,
+            experience_level=new_job.experience_level,
+            frontend_base_url=settings.frontend_base_url,
+        )
+        # ─────────────────────────────────────────────────────────────────────
+
         return new_job
     except IntegrityError:
         db.rollback()

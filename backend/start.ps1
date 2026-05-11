@@ -1,18 +1,65 @@
 Set-Location $PSScriptRoot
 
-$PORT = 10000
+$PORT     = 10000
+$PID_FILE = ".\.backend.pid"
+
+# ---------------------------------------------------------------------------
+# Aggressively free port 10000 regardless of whether the process is alive.
+# Strategy:
+#   1. Kill the saved PID from the last run (full process tree via taskkill /T)
+#   2. Kill every PID netstat finds on the port (catches orphans)
+#   3. Wait up to 30 s for the OS to release the socket (TIME_WAIT)
+# ---------------------------------------------------------------------------
+function Clear-Port {
+    Write-Host "Clearing port $PORT..." -ForegroundColor Cyan
+
+    # -- Step 1: kill the saved PID from the previous run -------------------
+    if (Test-Path $PID_FILE) {
+        $savedPid = Get-Content $PID_FILE -ErrorAction SilentlyContinue
+        if ($savedPid -match '^\d+$') {
+            Write-Host "  Killing saved PID $savedPid and its children..."
+            taskkill /PID $savedPid /F /T 2>$null | Out-Null
+            Stop-Process -Id ([int]$savedPid) -Force -ErrorAction SilentlyContinue
+        }
+        Remove-Item $PID_FILE -Force -ErrorAction SilentlyContinue
+    }
+
+    # -- Step 2: kill any remaining process found via netstat ---------------
+    $netstatLines = netstat -ano 2>$null | Select-String ":$PORT\s"
+    foreach ($line in $netstatLines) {
+        $parts   = ($line.ToString().Trim()) -split '\s+'
+        $netPid  = $parts[-1]
+        if ($netPid -match '^\d+$' -and [int]$netPid -gt 0) {
+            Write-Host "  Killing netstat PID $netPid on port $PORT..."
+            taskkill /PID $netPid /F /T 2>$null | Out-Null
+            Stop-Process -Id ([int]$netPid) -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # -- Step 3: wait up to 30 s for the OS to release the socket ----------
+    $waited = 0
+    while ($waited -lt 30) {
+        $still = netstat -ano 2>$null | Select-String ":$PORT\s"
+        if (-not $still) { break }
+        Start-Sleep -Seconds 1
+        $waited++
+        if ($waited % 5 -eq 0) {
+            Write-Host "  Waiting for port $PORT to free... ($waited/30 s)" -ForegroundColor Yellow
+        }
+    }
+
+    $final = netstat -ano 2>$null | Select-String ":$PORT\s"
+    if ($final) {
+        Write-Host "  Note: Port $PORT may still show in netstat (TIME_WAIT) but SO_REUSEADDR will bypass it." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Port $PORT is free." -ForegroundColor Green
+    }
+}
 
 function Stop-Backend {
     Write-Host "Stopping backend on port $PORT..."
-    $connections = Get-NetTCPConnection -LocalPort $PORT -State Listen -ErrorAction SilentlyContinue
-    if ($connections) {
-        foreach ($conn in $connections) {
-            Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
-        }
-        Write-Host "Backend stopped."
-    } else {
-        Write-Host "No backend process found on port $PORT."
-    }
+    Clear-Port
+    Write-Host "Backend stopped."
 }
 
 function Check-Environment {
@@ -23,7 +70,6 @@ function Check-Environment {
         return $false
     }
 
-    # Get python version suffix (e.g., 313)
     try {
         $pyVersion = & ".\venv\Scripts\python.exe" -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')"
     } catch {
@@ -32,12 +78,7 @@ function Check-Environment {
     }
     
     $expectedSuffix = "cp$pyVersion"
-
-    # Scan site-packages for .pyd files (compiled extensions)
-    # We check a few key packages to avoid a massive recursive scan if possible, 
-    # but a general check on site-packages is most robust.
     $pydFiles = Get-ChildItem -Path ".\venv\Lib\site-packages" -Filter "*.pyd" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 20
-    
     $mismatched = $pydFiles | Where-Object { $_.Name -match "cp\d+" -and $_.Name -notmatch $expectedSuffix }
     
     if ($mismatched) {
@@ -69,7 +110,6 @@ function Repair-Environment {
     Write-Host "Cleaning up corrupted and mismatched packages..."
     Remove-Item -Path ".\venv\Lib\site-packages\~*" -Recurse -Force -ErrorAction SilentlyContinue
     
-    # NEW: Delete all .pyd files that don't match the current Python version
     $pyVersion = & ".\venv\Scripts\python.exe" -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')"
     $expectedSuffix = "cp$pyVersion"
     $mismatchedPyds = Get-ChildItem -Path ".\venv\Lib\site-packages" -Filter "*.pyd" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "cp\d+" -and $_.Name -notmatch $expectedSuffix }
@@ -90,12 +130,11 @@ function Repair-Environment {
 }
 
 function Start-Backend {
-    if (!(Check-Environment)) {
-        exit 1
-    }
-    
-    Write-Host "Clearing port $PORT..."
-    Write-Host "Starting backend..."
+    if (!(Check-Environment)) { exit 1 }
+
+    # Kill any orphaned processes — TIME_WAIT zombies will be bypassed by
+    # SO_REUSEADDR in run_server.py, so we don't abort if the port "looks" busy.
+    Clear-Port
 
     # Guard: backend must only be started via this script.
     $env:BACKEND_START_MODE = "script"
@@ -104,22 +143,28 @@ function Start-Backend {
         & ".\venv\Scripts\Activate.ps1"
     }
 
-    # Strict single-instance check (pure guard mode: do NOT kill).
-    $portInUse = Get-NetTCPConnection -LocalPort $PORT -State Listen -ErrorAction SilentlyContinue
-    if ($portInUse) {
-        Write-Host "Port $PORT already in use. Skipping start."
-        exit 0
-    }
+    Write-Host "Starting backend on port $PORT..." -ForegroundColor Green
 
-    $proc = Start-Process -FilePath python -ArgumentList "-m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2 --log-level info" -NoNewWindow -PassThru
-    Write-Host "Backend PID: $($proc.Id)"
+    # run_server.py sets SO_REUSEADDR so Windows TIME_WAIT sockets are bypassed.
+    $proc = Start-Process `
+        -FilePath ".\venv\Scripts\python.exe" `
+        -ArgumentList "run_server.py" `
+        -NoNewWindow -PassThru
+
+    # Persist PID so the next run can cleanly kill this process tree.
+    $proc.Id | Set-Content $PID_FILE
+    Write-Host "Backend PID: $($proc.Id)  (saved to $PID_FILE)"
     Write-Host "Server running on http://0.0.0.0:$PORT"
+
     $proc.WaitForExit()
+
+    # Clean up PID file when the process exits normally.
+    Remove-Item $PID_FILE -Force -ErrorAction SilentlyContinue
 }
 
 function Restart-Backend {
     Stop-Backend
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
     Start-Backend
 }
 

@@ -314,6 +314,8 @@ app.include_router(onboarding.router)
 app.include_router(repository.router)
 app.include_router(websocket_router)
 
+from app.linkedin_auth import router as linkedin_router
+app.include_router(linkedin_router, prefix="/auth")
 
 
 @app.exception_handler(RequestValidationError)

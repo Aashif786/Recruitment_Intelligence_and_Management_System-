@@ -32,8 +32,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
-      <body className="app-shell font-sans" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" style={{ overflow: 'hidden', height: '100%' }}>
+      <body className="app-shell font-sans" suppressHydrationWarning style={{ overflow: 'hidden', height: '100%', margin: 0, padding: 0 }}>
         <SWRProvider>
           {/* Stable container to mitigate hydration issues from browser extensions */}
           <div className="relative flex flex-col h-screen overflow-hidden">
@@ -48,7 +48,7 @@ export default function RootLayout({
                 enableSystem
                 disableTransitionOnChange
               >
-                <div className="app-shell-content flex flex-col h-full flex-1" suppressHydrationWarning>
+                <div className="app-shell-content flex flex-col h-full flex-1 overflow-hidden" suppressHydrationWarning>
                   <TooltipProvider delayDuration={300}>
                     <Suspense fallback={null}>
                       <NavigationProgress />
