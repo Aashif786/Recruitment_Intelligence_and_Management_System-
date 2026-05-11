@@ -40,8 +40,10 @@ export class APIClient {
     const normalized = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
     return (
       normalized.startsWith('/api/jobs/public') ||
+      normalized.startsWith('/api/onboarding/') ||
       normalized === '/api/applications/apply' ||
-      normalized === '/api/applications/extract-basic-info'
+      normalized === '/api/applications/extract-basic-info' ||
+      normalized === '/api/support/ticket'
     )
   }
 

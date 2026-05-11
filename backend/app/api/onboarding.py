@@ -22,7 +22,7 @@ from reportlab.lib.units import inch
 from fastapi.responses import FileResponse, RedirectResponse
 from io import BytesIO
 from app.core.storage import upload_file, get_signed_url, get_public_url, get_supabase_client
-from app.core.timezone import get_ist_now
+from app.core.timezone import get_ist_now, IST, to_naive_ist
 
 import secrets
 import time
@@ -505,9 +505,7 @@ async def get_offer_preview(request: Request, token: str, db: Session = Depends(
         raise HTTPException(status_code=400, detail="Offer already responded to.")
     
     if application.offer_token_expiry:
-        expiry = application.offer_token_expiry
-        if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=timezone.utc)
+        expiry = to_naive_ist(application.offer_token_expiry)
         if expiry < get_ist_now():
             raise HTTPException(status_code=400, detail="Offer expired.")
 
@@ -733,6 +731,12 @@ async def respond_to_offer(request: Request, response_req: OfferResponseRequest,
     if application.offer_token_used:
          raise HTTPException(status_code=400, detail="Response already processed. Access locked.")
     
+    # Expiry Check
+    if application.offer_token_expiry:
+        expiry = to_naive_ist(application.offer_token_expiry)
+        if expiry < get_ist_now():
+            raise HTTPException(status_code=400, detail="Offer expired. Please contact HR.")
+    
     now = get_ist_now()
     target_action = TransitionAction.ACCEPT_OFFER if response_req.response_type == "accept" else TransitionAction.REJECT
     
@@ -757,6 +761,16 @@ async def respond_to_offer(request: Request, response_req: OfferResponseRequest,
         "ip": client_ip,
         "ua": user_agent
     }, ip=client_ip, is_critical=True)
+
+    # Notify HR Owner
+    if application.hr_id:
+        db.add(Notification(
+            user_id=application.hr_id,
+            notification_type="OFFER_RESPONSE",
+            title=f"Offer {response_req.response_type.capitalize()}ed",
+            message=f"{application.candidate_name} has {response_req.response_type}ed the offer for {application.job.title if application.job else 'the position'}.",
+            related_application_id=application.id
+        ))
 
     db.commit() # Atomic release of lock
 
@@ -858,6 +872,16 @@ def complete_onboarding(
     application.onboarded_at = get_ist_now()
     
     log_audit(db, "ONBOARDED_MANUAL", application.id, current_user.id, {"status": "success"}, is_critical=True)
+    
+    # Notify HR Owner
+    if application.hr_id:
+        db.add(Notification(
+            user_id=application.hr_id,
+            notification_type="CANDIDATE_ONBOARDED",
+            title="Candidate Onboarded",
+            message=f"{application.candidate_name} has been successfully onboarded.",
+            related_application_id=application.id
+        ))
     db.commit()
     return {"status": "success"}
 

@@ -599,7 +599,7 @@ async def apply_for_job(
         from app.domain.models import Notification
         db.add(Notification(
             user_id=job.hr_id,
-            notification_type="new_application",
+            notification_type="NEW_APPLICATION",
             title=f"New Application: {candidate_name}",
             message=f"{candidate_name} has applied for {job.title}.",
             related_application_id=new_application.id,
@@ -1608,7 +1608,7 @@ async def update_application_status(
             db.add(decision)
 
     if action == TransitionAction.REJECT:
-        from app.domain.models import HiringDecision
+        from app.domain.models import HiringDecision, Notification
         existing = db.query(HiringDecision).filter(
             HiringDecision.application_id == application_id
         ).first()
@@ -1621,6 +1621,16 @@ async def update_application_status(
                 decided_at=get_ist_now(),
             )
             db.add(decision)
+        
+        # Notify HR if offer was rejected during approval phase
+        if old_state == "pending_approval" and application.hr_id:
+            db.add(Notification(
+                user_id=application.hr_id,
+                notification_type="OFFER_REJECTED",
+                title="Offer Request Rejected",
+                message=f"The offer request for {application.candidate_name} was rejected by Super Admin.",
+                related_application_id=application.id
+            ))
     # ────────────────────────────────────────────────────────────────────
 
     # Atomic commit
@@ -1700,6 +1710,45 @@ async def delete_application(
         logger.error(f"Error deleting application {application_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete application. It might have complex dependencies.")
     return {"message": "Application deleted successfully"}
+    
+@router.post("/bulk-delete")
+async def bulk_delete_applications(
+    application_ids: List[int],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_hr)
+):
+    """
+    Delete multiple applications in a single transaction. HR only.
+    """
+    if not application_ids:
+        return {"message": "No applications provided for deletion"}
+
+    # Fetch all applications and validate ownership
+    apps = db.query(Application).filter(Application.id.in_(application_ids)).all()
+    
+    if len(apps) != len(application_ids):
+        found_ids = [app.id for app in apps]
+        missing_ids = list(set(application_ids) - set(found_ids))
+        logger.warning(f"Bulk delete: Some applications not found: {missing_ids}")
+
+    for app in apps:
+        validate_hr_ownership(app, current_user, resource_name="application")
+
+    try:
+        from app.domain.models import ResumeExtraction
+        # Delete associated data first
+        db.query(ResumeExtraction).filter(ResumeExtraction.application_id.in_(application_ids)).delete(synchronize_session=False)
+        
+        # Delete the applications
+        db.query(Application).filter(Application.id.in_(application_ids)).delete(synchronize_session=False)
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in bulk delete: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete applications. Some might have complex dependencies.")
+        
+    return {"message": f"Successfully deleted {len(apps)} applications"}
 
 @router.post("/{application_id}/merge/{target_id}")
 async def merge_applications(

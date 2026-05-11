@@ -381,11 +381,11 @@ async def parse_resume_with_ai(resume_text: str, job_id: int, job_description: s
         skill_match = calculate_match_percentage(result.get("skills", []), job_description)
         result["match_percentage"] = round(skill_match, 1)
 
-        # 3. Deterministic Final Score (Replacement for AI arbitrary score)
-        # score = (skill_match * 0.6) + (experience_score * 0.4)
+        # 3. Deterministic Final Score (Enhanced for better precision)
+        # We blend the deterministic calculation (80%) with AI qualitative intuition (20%)
+        ai_raw_score = float(data.get("score", 0)) * 10  # Scale 0-10 to 0-100
         
         # Extract required years from provided experience string OR job text fallback
-        # Level string takes precedence (e.g. '5+ years' from job model)
         required_exp = extract_years_from_level(required_experience)
         if required_exp <= 0:
             required_exp = extract_years_from_level(job_description) # Fallback to JD text search
@@ -396,13 +396,31 @@ async def parse_resume_with_ai(resume_text: str, job_id: int, job_description: s
             
         exp_match_score = calculate_exp_score(experience_years, required_exp)
         
-        # Final weighted score out of 100
-        weighted_score_100 = (skill_match * 0.6) + (exp_match_score * 0.4)
+        # Components: Skills (70%) vs Experience (30%)
+        # Increased skill weight because technical roles are skill-dependent
+        deterministic_score = (skill_match * 0.7) + (exp_match_score * 0.3)
         
-        # Scale to 0-10 for current DB/UI compatibility if needed, 
-        # or keep 0-100 if UI handles it. The UI currently does score * 10.
-        # So we store it such that score * 10 gives the percentage.
-        result["score"] = round(weighted_score_100 / 10, 1)
+        # Blend AI intuition (allows for unique highlights/soft skills to nudge score)
+        blended_score_100 = (deterministic_score * 0.8) + (ai_raw_score * 0.2)
+        
+        # ─── Mismatch Penalty Logic ───
+        # If skill match is zero, the candidate is fundamentally unqualified.
+        # We penalize the score so it doesn't give a "false pass" (like 40%)
+        if skill_match == 0:
+            # Significant penalty for zero technical match
+            final_weighted_score = min(blended_score_100 * 0.3, 18.0) 
+        elif skill_match < 20:
+            # Partial penalty for very low technical match
+            final_weighted_score = blended_score_100 * 0.65
+        else:
+            # Standard calculation
+            final_weighted_score = blended_score_100
+            
+        # Ensure it doesn't drop below 0 or exceed 100
+        final_weighted_score = max(0.0, min(100.0, final_weighted_score))
+        
+        # Scale to 0-10 for DB/UI compatibility
+        result["score"] = round(final_weighted_score / 10, 1)
 
         # Transparency Logic: Filter PII and Log Deviations
         if "reasoning" in result:
@@ -416,8 +434,8 @@ async def parse_resume_with_ai(resume_text: str, job_id: int, job_description: s
         logger.info(f"Resume Analysis Final Results | JOB ID: {job_id}")
         logger.info(f"Roles found: {len(result.get('roles', []))}")
         logger.info(f"Experience: {experience_years} years (Required: {required_exp} years, Score: {exp_match_score}%)")
-        logger.info(f"Skill Match: {skill_match}%")
-        logger.info(f"Final Compatibility Score: {result['score']}/10 ({weighted_score_100}%)")
+        logger.info(f"Skill Match: {skill_match}% | AI Raw: {ai_raw_score}%")
+        logger.info(f"Final Compatibility Score: {result['score']}/10 ({final_weighted_score}%)")
 
     except Exception as e:
         logger.error(f"AI Parse Error: {e}, falling back to regex.")

@@ -16,9 +16,10 @@ interface ScrollContainerProps {
 export function ScrollContainer({ children }: ScrollContainerProps) {
   const pathname = usePathname()
   const isDashboard = pathname?.startsWith('/dashboard')
+  const isAuth = pathname?.startsWith('/auth')
 
   return (
-    <main className={`flex-1 min-h-0 w-full flex flex-col ${isDashboard ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+    <main className={`flex-1 min-h-0 w-full flex flex-col ${isDashboard || isAuth ? 'overflow-hidden' : 'overflow-y-auto'}`}>
       <ErrorBoundary>
         <div className="h-full flex flex-col">
           {children}

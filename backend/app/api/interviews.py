@@ -15,7 +15,7 @@ from app.core.config import get_settings
 from app.core.observability import log_json
 from app.infrastructure.database import get_db
 from app.domain.models import User, Interview, Application, InterviewQuestion, InterviewAnswer, InterviewReport, Job, InterviewReportVersion
-from app.core.timezone import get_ist_now
+from app.core.timezone import get_ist_now, to_naive_ist
 from app.domain.schemas import (
     InterviewStart, InterviewAnswerSubmit, InterviewResponse, 
     InterviewQuestionResponse, InterviewDetailResponse, InterviewReportResponse,
@@ -875,8 +875,7 @@ async def access_interview(
             is_active = interview.status == "in_progress"
             used_at = interview.used_at
             if used_at:
-                if used_at.tzinfo is None:
-                    used_at = used_at.replace(tzinfo=timezone.utc)
+                used_at = to_naive_ist(used_at)
                 session_age = current_time - used_at
             else:
                 session_age = timedelta(0) # Assume just started if null
@@ -891,9 +890,7 @@ async def access_interview(
             logger.info(f"Resuming active session {interview.id} for {email_clean}")
             
         # Link Expiry Validation
-        expires_at = interview.expires_at
-        if expires_at and expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = to_naive_ist(interview.expires_at)
         if not expires_at or expires_at < current_time:
             logger.warning(f"Access link expired for interview {interview.id}. Expires at: {expires_at}")
             raise HTTPException(
@@ -928,6 +925,18 @@ async def access_interview(
                 interview.duration_minutes = 60
             
             logger.info(f"Initializing NEW interview session: {interview.id}")
+            
+            # Notify HR Owner
+            if application and application.hr_id:
+                from app.domain.models import Notification
+                db.add(Notification(
+                    user_id=application.hr_id,
+                    notification_type="INTERVIEW_STARTED",
+                    title="Interview Started",
+                    message=f"{application.candidate_name} has started the AI interview for {job.title if job else 'the position'}.",
+                    related_application_id=application.id,
+                    related_interview_id=interview.id
+                ))
         
         # 5. Background Question Generation Trigger
         # Check for existing questions to avoid duplicate background processing
@@ -2135,7 +2144,7 @@ async def _finalize_interview_and_report_internal(db: Session, interview_id: int
             status_desc = "completed" if interview.status == "completed" else "terminated early"
             notification = Notification(
                 user_id=job.hr_id if job else None,
-                notification_type="interview_completed",
+                notification_type="INTERVIEW_COMPLETED",
                 title=f"Interview {status_desc.capitalize()}: {interview.application.candidate_name if interview.application else 'Candidate'}",
                 message=f"{interview.application.candidate_name if interview.application else 'Candidate'} {status_desc} for {job.title if job else 'Job'}. Score: {interview_score:.1f}{apt_info}",
                 related_application_id=interview.application_id,

@@ -13,7 +13,7 @@ import secrets
 import string
 import logging
 from sqlalchemy import or_
-from app.core.timezone import get_ist_now
+from app.core.timezone import get_ist_now, to_naive_ist
 
 logger = logging.getLogger(__name__)
 
@@ -152,9 +152,7 @@ def verify_otp(request: Request, verification_data: UserVerifyOTP, db: Session =
             detail="No OTP has been generated. Please register again."
         )
 
-    expiry_time = user.otp_expiry
-    if expiry_time.tzinfo is None:
-        expiry_time = expiry_time.replace(tzinfo=timezone.utc)
+    expiry_time = to_naive_ist(user.otp_expiry)
         
     if get_ist_now() > expiry_time:
         try:
@@ -435,9 +433,7 @@ def reset_password(request: Request, data: ResetPasswordRequest, db: Session = D
     if not user.otp_code or not user.otp_expiry:
         raise HTTPException(status_code=400, detail="No reset request found")
         
-    expiry_time = user.otp_expiry
-    if expiry_time.tzinfo is None:
-        expiry_time = expiry_time.replace(tzinfo=timezone.utc)
+    expiry_time = to_naive_ist(user.otp_expiry)
         
     if get_ist_now() > expiry_time:
         raise HTTPException(status_code=400, detail="Reset OTP has expired")

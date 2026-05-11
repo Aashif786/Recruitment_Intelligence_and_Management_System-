@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { CheckCircle2, XCircle, Loader2, PartyPopper, Building2, ShieldAlert, AlertCircle, FileText, Calendar, Briefcase } from 'lucide-react'
 import { toast } from 'sonner'
+import { APIClient } from '@/app/dashboard/lib/api-client'
 
 interface OfferData {
     company_name?: string
@@ -37,41 +38,28 @@ export default function OfferRespondPage() {
 
     const fetchOfferDetails = async () => {
         try {
-            const res = await fetch(`/api/onboarding/offer?token=${token}`)
-            const data = await res.json()
-            if (res.ok) {
-                setOfferData(data)
-                setView('preview')
-            } else {
-                setView('error')
-                setMessage(data.detail || 'Failed to load offer details')
-            }
-        } catch (error) {
+            const data = await APIClient.get<OfferData>(`/api/onboarding/offer?token=${token}`)
+            setOfferData(data)
+            setView('preview')
+        } catch (error: any) {
+            console.error('Fetch error:', error)
             setView('error')
-            setMessage('Network error while loading offer.')
+            setMessage(error.message || 'Network error while loading offer.')
         }
     }
 
     const submitResponse = async (decisionType: 'accept' | 'reject') => {
         setIsSubmitting(true)
         try {
-            const res = await fetch('/api/onboarding/respond', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, response_type: decisionType })
+            await APIClient.post('/api/onboarding/respond', { 
+                token, 
+                response_type: decisionType 
             })
-            
-            const data = await res.json()
-            if (res.ok) {
-                setFinalStatus(decisionType)
-                setView('success')
-            } else {
-                setView('error')
-                setMessage(data.detail || 'Failed to submit response')
-            }
-        } catch (error) {
+            setFinalStatus(decisionType)
+            setView('success')
+        } catch (error: any) {
             setView('error')
-            setMessage('Network error. Please try again.')
+            setMessage(error.message || 'Failed to submit response')
         } finally {
             setIsSubmitting(false)
         }
@@ -184,10 +172,8 @@ export default function OfferRespondPage() {
                                 </p>
                             </>
                         )}
-                        <div className="pt-8">
-                            <Button variant="outline" onClick={() => window.close()} className="w-full h-12 rounded-xl">
-                                Close Window
-                            </Button>
+                        <div className="pt-8 text-lg text-muted-foreground font-bold">
+                            You can close this window now
                         </div>
                     </CardContent>
                 )}
@@ -238,47 +224,29 @@ export default function OfferRespondPage() {
                                         setIsSubmitting(true)
                                         const emailToUse = offerData?.candidate_email?.trim()
                                         try {
-                                            const res = await fetch('/api/support/ticket', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ 
-                                                    email: emailToUse, 
-                                                    access_key: token || 'onboarding_error', 
-                                                    grievance_type: 'Onboarding Issue', 
-                                                    description: message 
-                                                })
+                                            const d = await APIClient.post<any>('/api/support/ticket', { 
+                                                email: emailToUse, 
+                                                access_key: token || 'onboarding_error', 
+                                                grievance_type: 'Onboarding Issue', 
+                                                description: message 
                                             })
-                                            if (res.ok) {
-                                                setMessage('')
-                                                setOfferData(prev => ({...prev, candidate_email: emailToUse}))
-                                                setView('error')
-                                                // Reset view with success msg
-                                                const d = await res.json()
-                                                toast.success("Ticket #"+d.id+" has been raised successfully. We will contact you at " + emailToUse)
-                                            } else {
-                                                const d = await res.json()
-                                                // If token verification failed, try with magic key automatically
-                                                if (res.status === 401 || res.status === 404) {
-                                                     const retryRes = await fetch('/api/support/ticket', {
-                                                        method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({ 
-                                                            email: emailToUse, 
-                                                            access_key: 'onboarding_error', 
-                                                            grievance_type: 'Onboarding Issue (Link Error)', 
-                                                            description: `[AUTO_FALLBACK_LINK_ERROR]\nOriginal Token: ${token}\nMessage: ${message}` 
-                                                        })
-                                                     })
-                                                     if (retryRes.ok) {
-                                                        const d2 = await retryRes.json()
-                                                        toast.success("Ticket #"+d2.id+" raised using onboarding fallback. We found your record.")
-                                                        return
-                                                     }
-                                                }
-                                                toast.error(d.detail || 'Failed to raise ticket.')
+                                            setMessage('')
+                                            setOfferData(prev => ({...prev, candidate_email: emailToUse}))
+                                            setView('error')
+                                            toast.success("Ticket #" + d.id + " has been raised successfully. We will contact you at " + emailToUse)
+                                        } catch (e: any) {
+                                            // Auto-fallback if it fails (using magic key)
+                                            try {
+                                                const d2 = await APIClient.post<any>('/api/support/ticket', { 
+                                                    email: emailToUse, 
+                                                    access_key: 'onboarding_error', 
+                                                    grievance_type: 'Onboarding Issue (Link Error)', 
+                                                    description: `[AUTO_FALLBACK_LINK_ERROR]\nOriginal Token: ${token}\nMessage: ${message}` 
+                                                })
+                                                toast.success("Ticket #" + d2.id + " raised using onboarding fallback. We found your record.")
+                                            } catch (e2: any) {
+                                                toast.error(e.message || 'Failed to raise ticket.')
                                             }
-                                        } catch (e) {
-                                            toast.error('Network error.')
                                         } finally {
                                             setIsSubmitting(false)
                                         }

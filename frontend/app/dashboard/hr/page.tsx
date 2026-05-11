@@ -341,12 +341,14 @@ export default function HRDashboard() {
               <ActionButton href="/dashboard/hr/applications" label="Review Applications" />
               <ActionButton href="/dashboard/hr/pipeline" label="Hiring Pipeline" />
               <ActionButton href="/dashboard/hr/reports" label="View Reports" />
+              <ActionButton href="/dashboard/onboarding" label="Onboarding" />
               <ActionButton href="/dashboard/hr/tickets" label="Resolve Tickets" />
+              <ActionButton href="/dashboard/settings" label="Settings" />
             </CardContent>
           </Card>
         </div>
       </div>
-
+onb
       {/* Recent Interviews Table */}
       <Card className="shadow-none border border-border dark:border-slate-800 bg-card dark:bg-slate-900 rounded-xl animate-in fade-in duration-500 delay-700">
         <CardHeader>

@@ -473,7 +473,9 @@ export default function HRApplicationDetailPage() {
                                                             <div className="space-y-6 py-4">
                                                                 <div className="grid grid-cols-3 gap-3">
                                                                     <div className="text-center p-4 bg-primary/10 rounded-xl border border-indigo-100">
-                                                                        <p className="text-2xl font-black text-primary/80">{((resumeExtraction.resume_score || 0) * 10).toFixed(1)}</p>
+
+                                                                        {/* 40 percent problemx */}
+                                                                        <p className="text-2xl font-black text-primary/80">{((resumeExtraction.resume_score || 0) * 10).toFixed(1)}%</p>
                                                                         <p className="text-[10px] uppercase font-bold text-indigo-500 tracking-wider">Score</p>
                                                                     </div>
                                                                     <div className="text-center p-4 bg-emerald-50 rounded-xl border border-emerald-100">
