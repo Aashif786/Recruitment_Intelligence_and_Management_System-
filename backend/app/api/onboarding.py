@@ -101,18 +101,17 @@ from app.services.state_machine import CandidateStateMachine, TransitionAction, 
 def check_hr_permission(user: User, application: Application, db: Session):
     """
     Standardize HR permission guard. 
-    Global access for HR and Super Admin.
+    Enforces that HR users can only access their own applications.
     """
-    if user.role in ["super_admin", "admin"]:
+    from app.core.ownership import validate_hr_ownership
+    try:
+        validate_hr_ownership(application, user, resource_name="application")
         return True
-    if user.role == "hr":
-        # Any HR can manage onboarding if they have access to the app
-        return True
-        
-    raise HTTPException(
-        status_code=403, 
-        detail="Access denied: Insufficient permissions."
-    )
+    except HTTPException:
+        raise HTTPException(
+            status_code=403, 
+            detail="Access denied: You do not have permission to manage this candidate."
+        )
 
 async def generate_pdf_via_puppeteer(html_content: str, filename: str, bucket: str) -> str:
     """

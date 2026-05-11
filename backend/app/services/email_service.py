@@ -417,12 +417,7 @@ async def send_otp_email(to_email: str, otp: str):
       <h3 style="background:#f4f4f4; padding:10px; display:inline-block; letter-spacing:5px;">{otp}</h3>
     </body></html>
     """
-    result = await send_email_async(to_email, subject, body)
-    if result["success"]:
-        logger.info(f"[EMAIL][EXECUTED] OTP email sent to {_safe_email_target(to_email)}")
-    else:
-        logger.warning(f"Email failed for {to_email}: {result['error']}")
-    return result["success"]
+    return await execute_email_with_retries(to_email, subject, body, event_type="OTP_VERIFICATION")
 
 async def send_password_reset_email(to_email: str, otp: str):
     subject = "Password Reset Request"
@@ -443,12 +438,7 @@ async def send_password_reset_email(to_email: str, otp: str):
       <p>If you did not request this, please ignore this email.</p>
     </body></html>
     """
-    result = await send_email_async(to_email, subject, body)
-    if result["success"]:
-        logger.info(f"[EMAIL][EXECUTED] Password reset email sent to {_safe_email_target(to_email)}")
-    else:
-        logger.warning(f"Password reset email failed for {to_email}: {result['error']}")
-    return result["success"]
+    return await execute_email_with_retries(to_email, subject, body, event_type="PASSWORD_RESET")
 
 async def send_application_received_email(to_email_or_app: Any, job_title: str = None):
     if hasattr(to_email_or_app, 'candidate_email'):
@@ -698,12 +688,28 @@ async def send_call_for_interview_email(to_email: str, job_title: str):
     return result["success"]
 
 async def send_ticket_resolved_email(to_email: str, issue_type: str, hr_response: str, job_title: str = "your applied position"):
-    subject = f"Re: Congratulations! You're invited to interview for {job_title}"
+    subject = f"Support Ticket Update - {job_title}"
+    
+    # Contextual link: if it was a technical issue or interruption, they probably need to go back to the interview
+    link_html = ""
+    if issue_type in ["technical", "interruption", "reschedule"]:
+        access_url = f"{settings.frontend_base_url}/interview/access?email={to_email}"
+        link_html = f"""
+        <div style="margin: 20px 0;">
+            <a href="{access_url}" style="background-color: #2563eb; color: white; padding: 10px 18px; text-decoration: none; border-radius: 4px; font-weight: bold;">Return to Interview Portal</a>
+        </div>
+        """
+
     body = f"""
-    <html><body>
-      <h2>Support Ticket Update</h2>
-      <p>Your issue (<strong>{issue_type}</strong>) has been reviewed.</p>
-      <div style="background:#f9f9f9; padding:15px; border-left:4px solid #3b82f6; margin:10px 0;">{hr_response}</div>
+    <html><body style="font-family:sans-serif; color:#333;">
+      <h2 style="color:#2563eb;">Support Ticket Update</h2>
+      <p>Your support ticket regarding <strong>{issue_type.replace('_', ' ')}</strong> for the <strong>{job_title}</strong> position has been reviewed.</p>
+      <div style="background:#f9f9f9; padding:15px; border-left:4px solid #3b82f6; margin:10px 0;">
+        <strong>Resolution:</strong><br/>
+        {hr_response}
+      </div>
+      {link_html}
+      <p>Thank you for your patience.</p>
     </body></html>
     """
     result = await send_email_async(to_email, subject, body)
@@ -713,13 +719,18 @@ async def send_ticket_resolved_email(to_email: str, issue_type: str, hr_response
 
 async def send_key_reissued_email(to_email: str, job_title: str, new_key: str, hr_response: str):
     subject = f"Re: Congratulations! You're invited to interview for {job_title}"
+    frontend_url = settings.frontend_base_url
+    access_url = f"{frontend_url}/interview/access?email={to_email}&key={new_key}"
     body = f"""
-    <html><body>
-      <h2>Access Key Re-issued</h2>
+    <html><body style="font-family:sans-serif; color:#333; line-height:1.6;">
+      <h2 style="color:#2563eb;">Access Key Re-issued</h2>
       <p>Your request for <strong>{job_title}</strong> has been approved.</p>
       <div style="background:#f9f9f9; padding:15px; border-left:4px solid #10b981; margin:10px 0;">{hr_response}</div>
       <p><strong>New Access Key:</strong> <span style="background:#f4f4f4; padding:8px 12px; font-family:monospace; font-weight:bold;">{new_key}</span></p>
-      <p><a href="{settings.frontend_base_url}/interview/access">Go to Interview Portal</a></p>
+      <div style="margin: 25px 0; text-align: center;">
+        <a href="{access_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Resume Interview</a>
+      </div>
+      <p style="font-size: 0.85em; color: #777;">If the button above doesn't work, copy and paste this link: {access_url}</p>
     </body></html>
     """
     result = await send_email_async(to_email, subject, body)

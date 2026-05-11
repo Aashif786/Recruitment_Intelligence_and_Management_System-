@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY package*.json ./
+COPY patch-lightswind.js ./
 
 # Force a fresh install for the current platform
 RUN npm install

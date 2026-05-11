@@ -253,8 +253,13 @@ export default function InterviewPage() {
         setIsTranscribing(true)
         try {
             const formData = new FormData()
-            // Ensure filename extension matches mime type if possible
-            const ext = audioBlob.type.includes('ogg') ? 'ogg' : 'webm'
+            const mimeType = audioBlob.type || 'audio/webm'
+            let ext = 'webm'
+            if (mimeType.includes('mp4')) ext = 'mp4'
+            else if (mimeType.includes('ogg')) ext = 'ogg'
+            else if (mimeType.includes('wav')) ext = 'wav'
+            else if (mimeType.includes('mpeg')) ext = 'mp3'
+
             formData.append('file', audioBlob, `recording.${ext}`)
 
             transcribeSeqRef.current += 1
@@ -550,11 +555,11 @@ export default function InterviewPage() {
             // 1. Filter out micro-flashes (sometimes triggered by system dialogues)
             // 2. Filter out focus losses where the document remains visible (e.g. clicking taskbar or second monitor)
             //    unless the duration is substantial (> 2 seconds).
-            if (hiddenDurationMs < 700) return
+            if (hiddenDurationMs < 1500) return
 
             // If the document was NOT hidden (Visibility API) but focus was lost (Blur API),
             // and the duration was short, we are more lenient.
-            if (!document.hidden && hiddenDurationMs < 2000) return
+            if (!document.hidden && hiddenDurationMs < 5000) return
 
             const newWarnings = warningsRef.current + 1
             warningsRef.current = newWarnings
@@ -1139,11 +1144,14 @@ export default function InterviewPage() {
                                     title={q.is_answered && q.evaluation_pending ? 'Evaluating…' : q.is_answered ? 'Answered' : undefined}
                                     onClick={() => {
                                         const idx = questions.findIndex(item => item.id === q.id)
-                                        setCurrentIndex(idx)
-                                        // Only clear answer draft if the question is NOT already answered
-                                        if (!q.is_answered) {
-                                            setAnswer('')
-                                            answerRef.current = ''
+                                        if (idx <= currentIndex || q.is_answered || visitedIds.has(q.id)) {
+                                            setCurrentIndex(idx)
+                                            if (!q.is_answered) {
+                                                setAnswer('')
+                                                answerRef.current = ''
+                                            }
+                                        } else {
+                                            toast.info("Please complete the current question first.")
                                         }
                                     }}
                                     className={`w-9 h-9 rounded-full text-xs font-bold transition-all border-2 flex items-center justify-center ${questionNavButtonClass(
@@ -1173,10 +1181,14 @@ export default function InterviewPage() {
                                     title={q.is_answered && q.evaluation_pending ? 'Evaluating…' : undefined}
                                     onClick={() => {
                                         const idx = questions.findIndex(item => item.id === q.id)
-                                        setCurrentIndex(idx)
-                                        if (!q.is_answered) {
-                                            setAnswer('')
-                                            answerRef.current = ''
+                                        if (idx <= currentIndex || q.is_answered || visitedIds.has(q.id)) {
+                                            setCurrentIndex(idx)
+                                            if (!q.is_answered) {
+                                                setAnswer('')
+                                                answerRef.current = ''
+                                            }
+                                        } else {
+                                            toast.info("Please complete the current question first.")
                                         }
                                     }}
                                     className={`w-9 h-9 rounded-full text-xs font-bold transition-all border-2 flex items-center justify-center ${questionNavButtonClass(
@@ -1206,10 +1218,14 @@ export default function InterviewPage() {
                                     title={q.is_answered && q.evaluation_pending ? 'Evaluating…' : q.is_answered ? 'Answered' : undefined}
                                     onClick={() => {
                                         const idx = questions.findIndex(item => item.id === q.id)
-                                        setCurrentIndex(idx)
-                                        if (!q.is_answered) {
-                                            setAnswer('')
-                                            answerRef.current = ''
+                                        if (idx <= currentIndex || q.is_answered || visitedIds.has(q.id)) {
+                                            setCurrentIndex(idx)
+                                            if (!q.is_answered) {
+                                                setAnswer('')
+                                                answerRef.current = ''
+                                            }
+                                        } else {
+                                            toast.info("Please complete the current question first.")
                                         }
                                     }}
                                     className={`w-9 h-9 rounded-full text-xs font-bold transition-all border-2 flex items-center justify-center ${questionNavButtonClass(

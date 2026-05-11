@@ -195,7 +195,7 @@ def login(request: Request, response: Response, credentials: UserLogin, db: Sess
         logger.warning(f"Login failed: User {credentials.email} not found")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email not registered"
+            detail="Invalid credentials"
         )
 
     logger.info(f"Login attempt: User={credentials.email}")
@@ -203,7 +203,7 @@ def login(request: Request, response: Response, credentials: UserLogin, db: Sess
         logger.warning(f"Login failed: Password mismatch for user {credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid User Id or Password"
+            detail="Invalid credentials"
         )
 
     if not user.is_verified:

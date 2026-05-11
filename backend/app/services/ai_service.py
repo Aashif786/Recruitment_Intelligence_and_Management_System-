@@ -905,10 +905,13 @@ async def transcribe_audio(audio_file_path: str) -> str:
     for attempt in range(2):
         try:
             filename = os.path.basename(audio_file_path)
+            file_size = os.path.getsize(audio_file_path)
             # Ensure the file exists and has content
-            if not os.path.exists(audio_file_path) or os.path.getsize(audio_file_path) < 10:
+            if not os.path.exists(audio_file_path) or file_size < 100:
+                logger.warning(f"Audio file too small or missing for transcription: {filename} ({file_size} bytes)")
                 return ""
                 
+            logger.info(f"Sending audio to Groq Whisper: {filename} ({file_size} bytes)")
             with open(audio_file_path, "rb") as audio_file:
                 # Passing as a tuple (filename, file_object) is robust for format detection in Whisper APIs
                 transcript = await ai_client.client.audio.transcriptions.create(

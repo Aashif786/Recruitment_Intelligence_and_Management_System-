@@ -33,14 +33,8 @@ export function UserNav() {
     const router = useRouter()
 
     const handleLogout = useCallback(() => {
-        // Clear all storage before state change to prevent sync flickering
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem('rims_session_present')
-            localStorage.removeItem('rims_offline_cache_v4')
-        }
         logout()
-        router.push('/')
-    }, [logout, router])
+    }, [logout])
 
     const [isLogoDialogOpen, setIsLogoDialogOpen] = useState(false)
     const [logoUrl, setLogoUrl] = useState('')

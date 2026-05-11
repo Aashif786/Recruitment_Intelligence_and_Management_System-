@@ -24,6 +24,24 @@ const nextConfig = {
         basePath: false,
       },
       {
+        source: '/auth/:path*',
+        destination: '/calrims/auth/:path*',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/dashboard/:path*',
+        destination: '/calrims/dashboard/:path*',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/jobs/:path*',
+        destination: '/calrims/jobs/:path*',
+        permanent: false,
+        basePath: false,
+      },
+      {
         source: '/interview/:path*',
         destination: '/calrims/interview/:path*',
         permanent: false,

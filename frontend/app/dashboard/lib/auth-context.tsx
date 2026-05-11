@@ -308,7 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') localStorage.removeItem(SESSION_PRESENT_KEY)
     localStorage.removeItem('auth_token') // For legacy test hooks
     clearSession() // Clear session intelligence data
-    window.location.href = '/calrims/'
+    window.location.href = window.location.origin + '/calrims/'
   }, [])
 
   const refreshUser = useCallback(async () => {
