@@ -145,13 +145,13 @@ async def generate_pdf_via_puppeteer(html_content: str, filename: str, bucket: s
             logger.info(f"Puppeteer responded in {elapsed_time:.2f} seconds with status {response.status_code}")
             
             if response.status_code != 200:
+                error_detail = response.text[:500]
                 logger.error(
                     f"PDF_GENERATION_FAILED: Puppeteer service at {pdf_service_url} "
-                    f"returned {response.status_code}. Response: {response.text[:200]}"
+                    f"returned {response.status_code}. Response: {error_detail}"
                 )
                 raise Exception(
-                    f"PDF Generation service is currently unavailable. "
-                    f"Status: {response.status_code}. Please verify FRONTEND_BASE_URL is correct."
+                    f"PDF Generation service failed (Status {response.status_code}): {error_detail}"
                 )
             
             pdf_bytes = response.content
@@ -277,6 +277,10 @@ async def request_offer_approval(
     except Exception as e:
         logger.error(f"Date parsing error: {e}")
         raise HTTPException(status_code=400, detail="Invalid joining date format. Expected YYYY-MM-DD or ISO format.")
+
+    # Validation: Joining date cannot be in the past
+    if jdate.date() < get_ist_now().date():
+        raise HTTPException(status_code=400, detail="Joining date cannot be in the past.")
 
     settings_records = db.query(GlobalSettings).all()
     gs = {s.key: s.value for s in settings_records}

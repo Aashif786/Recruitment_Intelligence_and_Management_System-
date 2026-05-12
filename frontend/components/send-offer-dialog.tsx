@@ -55,6 +55,7 @@ export function SendOfferDialog({ applicationId, candidateName, onSuccess, trigg
                             <Input 
                                 id="joining_date" 
                                 type="date" 
+                                min={new Date().toISOString().split('T')[0]}
                                 className="pl-10 h-10 border-primary/20 focus-visible:ring-primary"
                                 value={joiningDate}
                                 onChange={(e) => setJoiningDate(e.target.value)}
