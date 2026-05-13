@@ -83,6 +83,7 @@ interface Feedback {
 
 export default function HRTicketsPage() {
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
+    const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(null)
     const [hrResponse, setHrResponse] = useState('')
     const [isResolving, setIsResolving] = useState(false)
     const [filter, setFilter] = useState<'pending' | 'all' | 'feedback'>('pending')
@@ -109,17 +110,22 @@ export default function HRTicketsPage() {
             return
         }
 
+        // Standardize actions to match backend canonical forms
+        const canonicalAction = action === 'resolve' ? 'resolved' : action === 'dismissed' ? 'dismissed' : action;
+
         const actionFn = () => APIClient.put(`/api/tickets/${ticketId}/resolve`, {
-            hr_response: hrResponse,
-            action,
-            send_email: sendEmail
+            hr_response: hrResponse || (action === 'dismissed' ? "Issue dismissed by HR." : "Issue resolved by HR."),
+            action: canonicalAction,
+            send_email: sendEmail && !!hrResponse.trim()
         })
 
         const successMsgs: Record<string, string> = {
             reissue_key: '🔑 Interview key re-issued — candidate can retake.',
             reply: '✉️ Reply sent to candidate.',
             resolve: '✅ Ticket resolved.',
+            resolved: '✅ Ticket resolved.',
             dismissed: '🚫 Ticket dismissed.',
+            dismiss: '🚫 Ticket dismissed.',
         }
 
         setIsResolving(true)
@@ -239,7 +245,10 @@ export default function HRTicketsPage() {
                         {feedbacks.map((fb) => (
                             <Tooltip key={fb.id}>
                                 <TooltipTrigger asChild>
-                                    <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors group cursor-pointer relative">
+                                    <div 
+                                        onClick={() => setSelectedFeedback(fb)}
+                                        className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors group cursor-pointer relative"
+                                    >
                                         <div className="col-span-2 flex gap-0.5">
                                             {[1, 2, 3, 4, 5].map(star => (
                                                 <Star key={star} className={`h-4 w-4 ${star <= fb.ui_ux_rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40'}`} />
@@ -423,9 +432,14 @@ export default function HRTicketsPage() {
                                     <div className="space-y-2 min-w-0">
                                         <Label className="text-xs uppercase tracking-widest text-muted-foreground font-black">Job Position</Label>
                                         {selectedTicket.job_identifier ? (
-                                            <Badge variant="outline" className="border-primary/30 text-primary font-black px-3 py-1 w-fit text-sm">
-                                                {selectedTicket.job_identifier}
-                                            </Badge>
+                                            <Link 
+                                                href={`/dashboard/hr/jobs/${selectedTicket.job_id}`}
+                                                onClick={() => setSelectedTicket(null)}
+                                            >
+                                                <Badge variant="outline" className="border-primary/30 text-primary font-black px-3 py-1 w-fit text-sm hover:bg-primary/5 transition-colors">
+                                                    {selectedTicket.job_identifier}
+                                                </Badge>
+                                            </Link>
                                         ) : (
                                             <Badge variant="outline" className="border-muted text-muted-foreground font-black px-3 py-1 w-fit text-sm">Unknown Job</Badge>
                                         )}
@@ -564,6 +578,66 @@ export default function HRTicketsPage() {
                             </DialogFooter>
                         </>
                     )}
+                </DialogContent>
+            </Dialog>
+            {/* Feedback Details Dialog */}
+            <Dialog open={!!selectedFeedback} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
+                <DialogContent className="max-w-xl bg-card border-border shadow-2xl p-0 overflow-hidden">
+                    <DialogHeader className="p-6 pb-2">
+                        <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-2">
+                            Candidate Feedback
+                            <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200">
+                                Rating: {selectedFeedback?.ui_ux_rating}/5
+                            </Badge>
+                        </DialogTitle>
+                        <DialogDescription>
+                            Detailed feedback provided by the candidate after their interview.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedFeedback && (
+                        <div className="px-6 py-6 space-y-6">
+                            <div className="flex flex-col gap-4 bg-muted/30 p-5 rounded-2xl border border-border/50">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Candidate</Label>
+                                    <div className="font-bold text-lg">{selectedFeedback.candidate_name}</div>
+                                    <div className="text-sm text-muted-foreground">{selectedFeedback.candidate_email}</div>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Position</Label>
+                                    <div className="font-bold text-primary">{selectedFeedback.job_title}</div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-black flex items-center gap-2">
+                                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                                    Feedback Comments
+                                </Label>
+                                <div className="p-6 bg-card rounded-2xl border-2 border-border/50 text-foreground font-medium text-base leading-relaxed italic shadow-sm italic">
+                                    {selectedFeedback.feedback_text ? `"${selectedFeedback.feedback_text}"` : "No specific comments provided."}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+                                <div className="flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    Received: {new Date(selectedFeedback.created_at).toLocaleDateString()}
+                                </div>
+                                <div className="flex gap-0.5">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <Star key={star} className={`h-4 w-4 ${star <= selectedFeedback.ui_ux_rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/20'}`} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="p-6 border-t bg-muted/20">
+                        <Button onClick={() => setSelectedFeedback(null)} className="font-black h-11 px-8 rounded-xl w-full sm:w-auto ml-auto">
+                            Close Feedback
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

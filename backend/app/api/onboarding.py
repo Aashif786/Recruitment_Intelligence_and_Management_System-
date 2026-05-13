@@ -244,12 +244,14 @@ def get_onboarding_candidates(
         
     return {"items": candidates, "total": total}
 
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request, UploadFile, File, Query
+
 @router.post("/applications/{application_id}/send-offer")
 async def request_offer_approval(
     application_id: int,
-    joining_date: str,
-    background_tasks: BackgroundTasks, # Added background_tasks here
-    auto_approve: bool = False,
+    joining_date: str = Query(...),
+    auto_approve: bool = Query(False),
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_hr)
 ):

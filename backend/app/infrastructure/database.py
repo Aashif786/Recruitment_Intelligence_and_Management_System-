@@ -37,7 +37,9 @@ def set_db_identity(db: Session, user_id: int):
     """
     from sqlalchemy import text
     try:
-        db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(user_id)})
+        # RLS is only supported/needed on PostgreSQL (Phase 2 Fix)
+        if "postgresql" in str(db.get_bind().url).lower():
+            db.execute(text("SET LOCAL app.current_user_id = :uid"), {"uid": str(user_id)})
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Failed to set RLS identity: {e}")

@@ -246,15 +246,25 @@ class CandidateStateMachine:
 
         # 1. Acquire Row Lock with Timeout (Concurrency Hardening)
         try:
-            # Set a 2-second timeout for this specific lock attempt
-            self.db.execute(text("SET LOCAL statement_timeout = '2s'"))
-            locked_app = self.db.query(Application).with_for_update().filter(Application.id == application.id).first()
+            # RLS and row locking logic for PostgreSQL (Phase 2/8)
+            is_postgres = "postgresql" in str(self.db.get_bind().url).lower()
+            
+            if is_postgres:
+                # Set a 2-second timeout for this specific lock attempt
+                self.db.execute(text("SET LOCAL statement_timeout = '2s'"))
+                locked_app = self.db.query(Application).with_for_update().filter(Application.id == application.id).first()
+            else:
+                locked_app = self.db.query(Application).filter(Application.id == application.id).first()
+                
             if not locked_app:
                 raise RuntimeError(f"Application {application.id} no longer exists")
             application = locked_app
         except OperationalError:
-            self.db.rollback()
-            raise RuntimeError(f"Application {application.id} is currently locked by another process (Transaction Timeout). Please retry.")
+            if is_postgres:
+                self.db.rollback()
+                raise RuntimeError(f"Application {application.id} is currently locked by another process (Transaction Timeout). Please retry.")
+            else:
+                raise
 
         # 2. Validate
         target_state = self.validate_transition(application, action)

@@ -175,10 +175,14 @@ export class APIClient {
       const errorMessage = typeof error === 'string' ? error : (error?.message || 'Unknown API error')
 
       if (typeof window !== 'undefined' && [401, 403, 500].includes(response.status)) {
-        // Don't toast for background SWR polling endpoints — they fail silently on logout
+        // Don't toast for background SWR polling endpoints or if it's a session expiry (handled by redirect)
         const isSilentEndpoint = response.url?.includes('/api/settings') ||
           response.url?.includes('/api/notifications') ||
-          response.url?.includes('/api/analytics/dashboard')
+          response.url?.includes('/api/analytics/dashboard') ||
+          response.url?.includes('/api/tickets') ||
+          response.url?.includes('/api/applications') ||
+          response.status === 401; // Primary UX fix: don't flood on 401
+        
         if (!isSilentEndpoint) {
           toast.error(`Error ${response.status}: ${errorMessage}`)
         }

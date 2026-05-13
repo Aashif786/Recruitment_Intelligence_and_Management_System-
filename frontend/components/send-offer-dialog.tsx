@@ -9,14 +9,24 @@ import { Calendar } from 'lucide-react'
 import { APIClient } from '@/app/dashboard/lib/api-client'
 import { toast } from "sonner"
 
-export function SendOfferDialog({ applicationId, candidateName, onSuccess, trigger }: { applicationId: number, candidateName: string, onSuccess: () => void, trigger: React.ReactNode }) {
+export function SendOfferDialog({ applicationId, candidateName, onSuccess, trigger, initialDate }: { applicationId: number, candidateName: string, onSuccess: () => void, trigger: React.ReactNode, initialDate?: string }) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
-    const [joiningDate, setJoiningDate] = useState('')
+    const [joiningDate, setJoiningDate] = useState(initialDate ? initialDate.split('T')[0] : '')
 
     const handleSend = async () => {
         if (!joiningDate) {
             toast.error("Please select a joining date")
+            return
+        }
+
+        const selectedDate = new Date(joiningDate)
+        selectedDate.setHours(0, 0, 0, 0)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        if (selectedDate < today) {
+            toast.error("Joining date cannot be in the past")
             return
         }
 

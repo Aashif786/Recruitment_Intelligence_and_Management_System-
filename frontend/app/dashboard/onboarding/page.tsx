@@ -97,12 +97,40 @@ export default function OnboardingPage() {
     const [pageSize, setPageSize] = useState(10)
     const [showStats, setShowStats] = useState(true)
 
+    const sortedCandidates = useMemo(() => {
+        return [...candidates].sort((a, b) => {
+            // Sort by status priority first
+            const statusOrder: Record<string, number> = {
+                'accepted': 0,
+                'hired': 1,
+                'offer_sent': 2,
+                'pending_approval': 3,
+                'onboarded': 4,
+                'rejected': 5
+            }
+            const orderA = statusOrder[a.status] ?? 99
+            const orderB = statusOrder[b.status] ?? 99
+            
+            if (orderA !== orderB) return orderA - orderB
+            
+            // Then by joining date
+            if (a.joining_date && b.joining_date) {
+                return new Date(a.joining_date).getTime() - new Date(b.joining_date).getTime()
+            }
+            if (a.joining_date) return -1
+            if (b.joining_date) return 1
+            
+            // Then by name
+            return a.candidate_name.localeCompare(b.candidate_name)
+        })
+    }, [candidates])
+
     const filteredCandidates = useMemo(() => {
-        return candidates?.filter(c => 
+        return sortedCandidates?.filter(c => 
             c.candidate_name.toLowerCase().includes(search.toLowerCase()) ||
             c.candidate_email.toLowerCase().includes(search.toLowerCase())
         ) || []
-    }, [candidates, search])
+    }, [sortedCandidates, search])
 
     const totalPages = Math.ceil(filteredCandidates.length / pageSize)
     
@@ -153,23 +181,6 @@ export default function OnboardingPage() {
         }
     }
 
-    const handleResendOffer = async (candidate: OnboardingCandidate) => {
-        if (!candidate.joining_date) {
-            toast.error("Cannot resend: joining date is missing.")
-            return
-        }
-        try {
-            const joiningDateISO = new Date(candidate.joining_date).toISOString()
-            await APIClient.post(
-                `/api/onboarding/applications/${candidate.id}/send-offer?joining_date=${encodeURIComponent(joiningDateISO)}&auto_approve=true`,
-                {}
-            )
-            toast.success(`Offer letter resent to ${candidate.candidate_name}`)
-            mutate()
-        } catch (error: any) {
-            toast.error(error.message || "Failed to resend offer letter.")
-        }
-    }
 
     const handleGenerateID = async (id: number) => {
         try {
@@ -270,15 +281,15 @@ export default function OnboardingPage() {
                         <CardContent>
                             <div className="text-2xl font-black">
                                 {candidates?.filter(c => {
-                                    if (!c.joining_date) return false
+                                    if (!c.joining_date || c.status === 'onboarded') return false
                                     const jDate = new Date(c.joining_date)
                                     jDate.setHours(0, 0, 0, 0)
                                     const today = new Date()
                                     today.setHours(0, 0, 0, 0)
                                     const diff = jDate.getTime() - today.getTime()
-                                    // Task: upcoming filter sis not properly working... diff == 7 days
-                                    // Use exactly 7 days (604800000 ms)
-                                    return diff === 7 * 24 * 60 * 60 * 1000
+                                    // Window of next 7 days (including today)
+                                    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000
+                                    return diff >= 0 && diff <= sevenDaysInMs
                                 }).length || 0}
                             </div>
                             <p className="text-xs text-muted-foreground">Reminders sent automatically</p>
@@ -392,11 +403,11 @@ export default function OnboardingPage() {
                                                 {(() => {
                                                     const isExpired = candidate.offer_token_expiry &&
                                                         new Date(candidate.offer_token_expiry) < new Date() &&
-                                                        candidate.offer_response_status === 'pending'
+                                                        (candidate.status === 'offer_sent' || candidate.offer_response_status === 'pending')
                                                     return (
                                                         <>
                                                             {isExpired && (
-                                                                <span className="text-[9px] text-destructive font-bold uppercase tracking-tighter">Link Expired</span>
+                                                                <span className="text-[9px] text-destructive font-bold uppercase tracking-tighter bg-destructive/5 px-2 py-0.5 rounded-full mt-1 border border-destructive/20">Link Expired</span>
                                                             )}
                                                         </>
                                                     )
@@ -430,15 +441,22 @@ export default function OnboardingPage() {
                                                     candidate.offer_token_expiry &&
                                                     new Date(candidate.offer_token_expiry) < new Date() &&
                                                     candidate.offer_response_status === 'pending' && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="h-8 gap-1.5 text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
-                                                        onClick={() => handleResendOffer(candidate)}
-                                                    >
-                                                        <RefreshCcw className="h-3.5 w-3.5" />
-                                                        Resend Offer
-                                                    </Button>
+                                                    <SendOfferDialog 
+                                                         applicationId={candidate.id}
+                                                         candidateName={candidate.candidate_name}
+                                                         initialDate={candidate.joining_date}
+                                                         onSuccess={() => mutate()}
+                                                         trigger={
+                                                             <Button
+                                                                 size="sm"
+                                                                 variant="outline"
+                                                                 className="h-8 gap-1.5 text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
+                                                             >
+                                                                 <RefreshCcw className="h-3.5 w-3.5" />
+                                                                 Resend Offer
+                                                             </Button>
+                                                         }
+                                                     />
                                                 )}
                                                 {candidate.status === 'pending_approval' && (user?.role === 'super_admin' || user?.role === 'hr') && (
                                                     <Button 
