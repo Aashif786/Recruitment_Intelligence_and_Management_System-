@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { normalizeHireRecommendation } from "@/lib/recommendation-label"
 import { isInterviewNotCompleted } from "@/components/reports/interviewIncomplete"
 import { AlertCircle } from "lucide-react"
+import { toast } from "sonner"
 
 // ─── FSM Button Config ──────────────────────────────────────────────────
 const FSM_BUTTONS: Record<string, { action: string; label: string; icon: React.ReactNode; className: string }[]> = {
@@ -219,13 +220,22 @@ export default function HRApplicationDetailPage() {
     }
 
     const handleDownloadResume = async (filePath: string) => {
-        // Enforce direct Cloud Storage URL (Task 4)
+        // Enforce direct Cloud Storage URL if available (Task 4)
         if (application?.resume_url) {
             window.open(application.resume_url, '_blank')
             return
         }
         
-        console.error('Resume download failed: Cloud URL not provided by backend.')
+        // Fallback: Securely download via backend API (Legacy or local dev fallback)
+        try {
+            await APIClient.downloadFile(
+                `/api/applications/${applicationId}/resume/download`,
+                application.resume_file_name || `resume_${application.candidate_name.replace(/\s+/g, '_')}.pdf`
+            )
+        } catch (err: any) {
+            console.error('Resume download failed:', err)
+            toast.error(err.message || 'Failed to download resume')
+        }
     }
 
     if (isLoading) {

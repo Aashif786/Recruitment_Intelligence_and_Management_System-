@@ -236,9 +236,8 @@ def login(request: Request, response: Response, credentials: UserLogin, db: Sess
         value=access_token,
         httponly=True,
         samesite="strict",
-        secure=settings.env == "production",
-        max_age=settings.jwt_expiration_minutes * 60,
-        expires=settings.jwt_expiration_minutes * 60
+        secure=settings.env == "production"
+        # Removed max_age and expires: Browser will delete cookie on close
     )
 
     return {

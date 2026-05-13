@@ -155,6 +155,30 @@ export class APIClient {
     await this.handleResponse(response)
   }
 
+  static async downloadFile(endpoint: string, filename: string): Promise<void> {
+    const url = `${API_BASE_URL}${endpoint}`
+    const response = await this.fetchWithRetry(url, {
+      method: 'GET',
+      headers: this.getHeaders(false, endpoint),
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || errorData.error || `Download failed: ${response.statusText}`)
+    }
+
+    const blob = await response.blob()
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(downloadUrl)
+  }
+
   static async handleResponse<T>(response: Response): Promise<T> {
     if (response.status === 204) {
       return {} as T

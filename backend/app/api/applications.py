@@ -719,20 +719,32 @@ async def process_application_background(application_id: int, job_id: int, abs_f
             file_ext = abs_file_path.lower().split('_')[-1].split('.')[-1] if '.' in abs_file_path else 'pdf'
             
             if file_ext == 'pdf':
-                if response.startswith(b'%PDF'):
+                # Handle potential BOM or leading whitespace in binary response
+                if response.lstrip().startswith(b'%PDF'):
                     from pypdf import PdfReader
                     reader = PdfReader(file_stream)
                     for page in reader.pages:
-                        resume_text += page.extract_text() + "\n"
+                        page_text = page.extract_text()
+                        if page_text:
+                            resume_text += page_text + "\n"
                 else:
+                    # Fallback for plain-text or disguised PDFs
                     resume_text = response.decode('utf-8', errors='ignore')
-            elif file_ext in ['docx', 'doc']:
+            elif file_ext == 'docx':
                 import docx
                 doc = docx.Document(file_stream)
                 for para in doc.paragraphs:
-                    resume_text += para.text + "\n"
+                    if para.text:
+                        resume_text += para.text + "\n"
+            elif file_ext == 'doc':
+                # python-docx doesn't support legacy .doc; fallback to raw text if it looks readable
+                resume_text = response.decode('utf-8', errors='ignore')
             else:
                 resume_text = response.decode('utf-8', errors='ignore')
+
+            # Post-extraction sanity check: If very little text was found in a large PDF, it's likely a scanned image.
+            if file_ext == 'pdf' and len(response) > 50000 and len(resume_text.strip()) < 100:
+                resume_text = "[[SCANNED_PDF_DETECTED]]\n" + resume_text
         except Exception as e:
             logger.error(f"Background Text Extraction Skipped or Failed: {e}")
             cand_service.create_audit_log(None, "RESUME_TEXT_EXTRACTION_SKIPPED", "Application", application_id, {"reason": str(e)})
@@ -1308,15 +1320,22 @@ async def retry_application_background(application_id: int, job_id: int, bucket_
                 from pypdf import PdfReader
                 reader = PdfReader(file_stream)
                 for page in reader.pages:
-                    resume_text += page.extract_text() + "\n"
-            elif file_ext in ['docx', 'doc']:
+                    page_text = page.extract_text()
+                    if page_text:
+                        resume_text += page_text + "\n"
+            elif file_ext == 'docx':
                 import docx
                 doc = docx.Document(file_stream)
                 for para in doc.paragraphs:
-                    resume_text += para.text + "\n"
+                    if para.text:
+                        resume_text += para.text + "\n"
             else:
                 file_stream.seek(0)
                 resume_text = file_stream.read().decode('utf-8', errors='ignore')
+
+            # Post-extraction sanity check
+            if file_ext == 'pdf' and len(response) > 50000 and len(resume_text.strip()) < 100:
+                resume_text = "[[SCANNED_PDF_DETECTED]]\n" + resume_text
         except Exception as e:
             logger.error(f"Retry Text Extraction Error: {e}", exc_info=True)
             cand_service.create_audit_log(None, "RETRY_TEXT_EXTRACTION_FAILED", "Application", application_id, {"error": str(e)})
@@ -1559,6 +1578,7 @@ async def update_application_status(
         raise HTTPException(status_code=400, detail="System actions cannot be triggered manually")
 
     # Execute FSM transition
+    old_state = application.status
     fsm = CandidateStateMachine(db)
     try:
         logger.debug(f"/api/auth/me user_id={current_user.id}, role={current_user.role}")

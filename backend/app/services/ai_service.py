@@ -226,8 +226,10 @@ async def parse_resume_with_ai(resume_text: str, job_id: int, job_description: s
         if req_exp <= 0: return 100 # No requirement = full score
         return min((cand_exp / req_exp) * 100, 100)
         
-    # Detection for unreadable/scanned PDFs
-    if "SCANNED_PDF_DETECTED" in resume_text:
+    # Detection for unreadable/scanned PDFs or extraction errors
+    is_unreadable = "SCANNED_PDF_DETECTED" in resume_text or "Error extracting text." in resume_text or "No readable text found." in resume_text
+    
+    if is_unreadable:
         return {
             "is_resume": False,
             "candidate_name": None,
@@ -240,10 +242,23 @@ async def parse_resume_with_ai(resume_text: str, job_id: int, job_description: s
             "score": 0.0,
             "match_percentage": 0,
             "extraction_degraded": True,
-            "reasoning": "Document contains no extractable text (likely a scanned image)."
+            "reasoning": "Document contains no extractable text or a text extraction error occurred."
         }
 
     sanitized_resume = sanitize_ai_input(resume_text, "Resume Upload")
+    
+    # If text is too short after stripping, it's effectively unreadable
+    if len(sanitized_resume.strip()) < 50:
+         return {
+            "is_resume": False,
+            "skills": ["Empty / Short Document"],
+            "experience": 0,
+            "summary": "The extracted text from this document is too short for a meaningful AI analysis. Verify if the document is a valid resume or a scanned image.",
+            "score": 0.0,
+            "match_percentage": 0,
+            "extraction_degraded": True,
+            "reasoning": "Extracted text length below minimum threshold for analysis."
+        }
     
     prompt = f"""
     Analyze this document as an expert HR professional. Extract all relevant candidate information and evaluate their fit for the role.
