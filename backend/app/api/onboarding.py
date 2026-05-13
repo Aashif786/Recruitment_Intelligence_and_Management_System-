@@ -34,7 +34,8 @@ from app.services.offer_letter_service import get_offer_letter_data
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
+from app.core.standardized_route import StandardizedAPIRoute
+router = APIRouter(prefix="/api/onboarding", tags=["onboarding"], route_class=StandardizedAPIRoute)
 settings = get_settings()
 
 RATE_LIMIT_STORAGE = defaultdict(list)

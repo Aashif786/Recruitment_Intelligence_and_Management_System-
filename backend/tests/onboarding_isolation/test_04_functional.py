@@ -23,10 +23,11 @@ def test_functional_full_lifecycle(client: TestClient, hr_auth_headers, sample_a
 
 def test_functional_link_expiry_check(client: TestClient, sample_application, db_session):
     # Area 3: Expired link logic
+    from app.core.timezone import get_ist_now
     sample_application.offer_token = "expired-token"
-    sample_application.offer_expires_at = datetime.utcnow() - timedelta(days=1)
+    sample_application.offer_token_expiry = get_ist_now() - timedelta(days=1)
     db_session.commit()
     
     response = client.get(f"/api/onboarding/offer?token=expired-token")
     assert response.status_code == 400
-    assert "expired" in response.json()["detail"].lower()
+    assert "expired" in response.json()["error"].lower()

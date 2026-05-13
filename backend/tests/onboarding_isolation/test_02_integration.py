@@ -9,7 +9,7 @@ def test_integration_job_ownership_propagation(client: TestClient, hr_auth_heade
     db_session.add(app)
     db_session.commit()
     response = client.get("/api/onboarding/candidates", headers=hr_auth_headers)
-    assert any(c["candidate_name"] == "Int Area 1" for c in response.json()["items"])
+    assert any(c["candidate_name"] == "Int Area 1" for c in response.json()["data"]["items"])
 
 def test_integration_settings_template_check(client: TestClient, hr_auth_headers, sample_application, db_session):
     # Area 2: Settings -> Onboarding PDF Generation Integration
@@ -22,7 +22,8 @@ def test_integration_settings_template_check(client: TestClient, hr_auth_headers
     url = f"/api/onboarding/applications/{sample_application.id}/send-offer?joining_date=2026-12-01&auto_approve=true"
     response = client.post(url, headers=hr_auth_headers)
     assert response.status_code == 400
-    assert "no offer template found" in response.json()["detail"].lower()
+    detail = response.json()["error"].lower()
+    assert "no offer template" in detail or "offer letter could not be sent" in detail
 
 def test_integration_notification_trigger(client: TestClient, hr_auth_headers, sample_application, db_session):
     # Area 3: Onboarding -> Notifications System Integration

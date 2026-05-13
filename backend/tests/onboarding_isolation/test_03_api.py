@@ -6,7 +6,7 @@ def test_api_candidates_list_schema(client: TestClient, hr_auth_headers):
     # Area 1: GET /candidates
     response = client.get("/api/onboarding/candidates", headers=hr_auth_headers)
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert "items" in data
     assert isinstance(data["items"], list)
 
@@ -20,4 +20,4 @@ def test_api_analytics_schema(client: TestClient, hr_auth_headers):
     response = client.get("/api/onboarding/analytics/offers", headers=hr_auth_headers)
     assert response.status_code in (200, 403) # 403 if only admin can access
     if response.status_code == 200:
-        assert "upcoming_joinings" in response.json()
+        assert "upcoming_joinings" in response.json()["data"]

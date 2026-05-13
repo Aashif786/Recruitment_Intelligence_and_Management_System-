@@ -3,11 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import InterviewSession from '@/modules/interview/InterviewSession';
+import InterviewHardwareCheck from '@/modules/interview/InterviewHardwareCheck';
 
 export default function LiveInterviewPage() {
     const params = useParams();
     const searchParams = useSearchParams();
     const [token, setToken] = useState('');
+    const [isVerified, setIsVerified] = useState(false);
 
     const sessionId = (params.id as string) || 'test-session';
 
@@ -30,7 +32,11 @@ export default function LiveInterviewPage() {
 
             <main className="flex-1 w-full max-w-7xl mx-auto p-6 md:p-12 overflow-hidden">
                 {token ? (
-                    <InterviewSession sessionId={sessionId} token={token} />
+                    isVerified ? (
+                        <InterviewSession sessionId={sessionId} token={token} />
+                    ) : (
+                        <InterviewHardwareCheck onVerified={() => setIsVerified(true)} />
+                    )
                 ) : (
                     <p className="text-center text-muted-foreground mt-12">
                         Missing interview token. Open this page from your interview link, complete access on{' '}
