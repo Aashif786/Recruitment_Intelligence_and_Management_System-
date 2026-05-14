@@ -810,12 +810,12 @@ async def process_application_background(application_id: int, job_id: int, abs_f
         application.resume_score = extraction_data.get("score", 0)
         
         # ── Phase 7: Scoring Transparency ──
-        application.scoring_metadata = json.dumps({
+        application.scoring_metadata = {
             "logic_version": "v2.0",
             "weights": {"skills": 0.6, "experience": 0.4},
             "recomputed_at": get_ist_now().isoformat(),
             "extraction_degraded": extraction_degraded_flag
-        })
+        }
         
         # ── HYBRID IDENTITY EXTRACTION: AI + regex fallback ──
         from app.services.ai_service import extract_email_regex, extract_phone_regex, extract_name_heuristic
@@ -859,6 +859,10 @@ async def process_application_background(application_id: int, job_id: int, abs_f
                 except Exception as e:
                     logger.warning(f"Failed to clean up files for duplicate application #{application_id}: {e}")
 
+                # Delete related resume_extraction first if it exists in session to avoid ForeignKeyViolation
+                if resume_extraction:
+                    db.delete(resume_extraction)
+                
                 db.delete(application)
                 db.commit()
                 db.close()
@@ -942,7 +946,9 @@ async def process_application_background(application_id: int, job_id: int, abs_f
             # Optionally update application status to indicate processing failed
             application = db.query(Application).filter(Application.id == application_id).with_for_update().first()
             if application:
-                application.status = "applied"  # Keep in 'applied' — HR can retry or proceed manually
+                # Only reset to 'applied' if it hasn't been advanced by HR (Fix for status-sync bug)
+                if application.status == "applied":
+                    application.status = "applied" 
                 application.resume_status = "failed"
                 application.retry_count = (application.retry_count or 0) + 1
                 application.failure_reason = str(e)[:1000]
@@ -1371,20 +1377,50 @@ async def retry_application_background(application_id: int, job_id: int, bucket_
         if extraction_data.get("phone_number"):
             resume_extraction.phone_number = extraction_data.get("phone_number")
         
-        application.resume_score = extraction_data.get("score", 0)
+        resume_extraction.reasoning = {"ai_justification": extraction_data.get("reasoning")}
         
-        if "@batch." in application.candidate_email:
-            if extraction_data.get("candidate_name"):
-                application.candidate_name = extraction_data.get("candidate_name")
-            if extraction_data.get("email"):
-                application.candidate_email = extraction_data.get("email")
-            if extraction_data.get("phone_number"):
-                application.candidate_phone = extraction_data.get("phone_number")
+        application.resume_score = extraction_data.get("score", 0)
+        application.scoring_metadata = {
+            "logic_version": "v2.0",
+            "weights": {"skills": 0.6, "experience": 0.4},
+            "recomputed_at": get_ist_now().isoformat(),
+            "extraction_degraded": extraction_degraded_flag
+        }
+        
+        # ── HYBRID IDENTITY EXTRACTION (Sync on retry) ──
+        from app.services.ai_service import extract_email_regex, extract_phone_regex, extract_name_heuristic
+        extracted_name = extraction_data.get("candidate_name") or extract_name_heuristic(resume_text)
+        extracted_email = extraction_data.get("email") or extract_email_regex(resume_text)
+        extracted_phone = extraction_data.get("phone_number") or extract_phone_regex(resume_text)
+        
+        email_is_placeholder = application.candidate_email and "@batch." in application.candidate_email
+        name_is_placeholder = not application.candidate_name or len(application.candidate_name.split()) < 2
+
+        if extracted_email and (not application.candidate_email or email_is_placeholder):
+            application.candidate_email = extracted_email
+        if extracted_name and (not application.candidate_name or name_is_placeholder):
+            application.candidate_name = extracted_name
+        if extracted_phone and not application.candidate_phone:
+            application.candidate_phone = extracted_phone
 
         if extraction_degraded_flag:
             _append_extraction_degraded_marker(application)
 
         application.resume_status = "parsed"; application.failure_reason = None
+        
+        # ── Pipeline Advancement on Retry ──
+        # Same logic as initial: pass unless it's a known duplicate (retry usually shouldn't happen for duplicates)
+        stage_status = "pass"
+        stage_note = "AI analysis complete (via manual retry) — awaiting HR decision"
+        
+        cand_service.advance_stage(
+            application_id, 
+            "Resume Screening", 
+            stage_status, 
+            extraction_data.get("score", 0) * 10, 
+            stage_note
+        )
+
         db.commit()
         cand_service.create_audit_log(None, "AI_ANALYSIS_RETRY_SUCCESS", "Application", application_id, {"score": extraction_data.get("score")})
         logger.info(f"Retry successful for application {application_id}")

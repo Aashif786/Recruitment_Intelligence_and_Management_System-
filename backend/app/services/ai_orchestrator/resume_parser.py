@@ -12,7 +12,7 @@ async def parse_resume(text: str) -> dict:
     system_instr = "You are an expert technical recruiter. Parse the resume and return a JSON object with: 'skills' (list of strings), 'years_of_experience' (float), 'education' (list of objects), 'previous_roles' (list of objects with 'title', 'company', 'duration'), 'summary' (string). Return ONLY valid JSON."
     
     try:
-        response = await ai_client.generate(prompt, system_instr)
+        response = await ai_client.generate(prompt, system_instr, model="llama-3.3-70b-versatile")
         return json.loads(clean_json(response))
     except Exception as e:
         logger.error(f"Failed to parse resume: {str(e)}", exc_info=True)

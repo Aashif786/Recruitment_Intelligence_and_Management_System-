@@ -321,6 +321,10 @@
   .app-shell-content {
     @apply relative z-10;
   }
+
+  .mirror {
+    transform: scaleX(-1);
+  }
 }
 
 @keyframes blob {

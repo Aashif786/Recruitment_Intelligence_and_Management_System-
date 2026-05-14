@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "npx --yes kill-port 3000 && next dev --turbo -p 3000",
+    "dev": "npx --yes kill-port 3000 && next dev -p 3000",
     "lint": "eslint .",
     "start": "next start",
     "postinstall": "node patch-lightswind.js"

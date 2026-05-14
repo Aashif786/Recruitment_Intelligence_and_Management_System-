@@ -15,24 +15,27 @@ async def generate_questions(role: str, experience_level: str, skills: List[str]
         context_str = json.dumps(previous_evaluations[-3:]) # Only check last 3 to keep context window clean
         
     prompt = f"""
-    The candidate is applying for: {experience_level} {role}.
+    The candidate is applying for: {role}.
+    Current Stage: {experience_level.upper()} ROUND.
     The candidate has the following skills: {', '.join(skills)}.
     The current difficulty level requested is: {difficulty.upper()}.
     
     Context from recent questions:
     {context_str}
     
-    Generate the next question.
+    Generate the next question for the {experience_level.upper()} phase.
+    - If APTITUDE: Focus on logic, reasoning, or math (provide 4 options).
+    - If TECHNICAL: Focus on {role} specific skills and tools.
+    - If BEHAVIORAL: Focus on situational, soft skills, and culture fit.
     """
     
-    system_instr = """
-    You are an expert technical interviewer.
+    system_instr = f"""
+    You are an expert technical interviewer conducting the {experience_level.upper()} round.
     Return a JSON object containing:
     - 'question': The exact question to ask the candidate.
-    - 'expected_points': A list of strings of what a good answer should contain.
+    - 'expected_points': If APTITUDE, return a list of 4 options (A, B, C, D). If TECHNICAL/BEHAVIORAL, return a list of rubric points.
     - 'difficulty': The difficulty of the question.
     
-    If the candidate is struggling based on recent context, ensure the question helps them regain confidence but tests fundamental concepts.
     Return ONLY valid JSON.
     """
     

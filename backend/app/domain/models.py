@@ -224,7 +224,7 @@ class ResumeExtraction(Base):
     __tablename__ = "resume_extractions"
 
     id = Column(Integer, primary_key=True, index=True)
-    application_id = Column(Integer, ForeignKey('applications.id'), nullable=False, unique=True, index=True)
+    application_id = Column(Integer, ForeignKey('applications.id', ondelete="CASCADE"), nullable=False, unique=True, index=True)
     extracted_text = Column(EncryptedText)
     summary = Column(Text)  # Added summary field
     extracted_skills = Column(Text)  # JSON array

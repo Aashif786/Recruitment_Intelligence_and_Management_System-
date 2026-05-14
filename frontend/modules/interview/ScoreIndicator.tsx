@@ -1,23 +1,30 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Brain, Sparkles, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Star, TrendingUp, Award, CheckCircle2 } from 'lucide-react';
 
 interface ScoreIndicatorProps {
-    feedback: { score: number, text: string } | null;
+    feedback: { score: number; text: string } | null;
     currentDifficulty?: string;
 }
 
 export default function ScoreIndicator({ feedback, currentDifficulty }: ScoreIndicatorProps) {
-
     if (!feedback) {
         return (
-            <Card className="bg-primary/5 border-primary/20 text-center py-8">
-                <CardContent className="flex flex-col items-center justify-center space-y-4">
-                    <Brain className="w-12 h-12 text-primary opacity-50" />
+            <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden">
+                <CardHeader className="bg-slate-50 border-b py-4 px-6">
+                    <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <TrendingUp className="w-3 h-3 text-primary" />
+                        Live Performance Status
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 text-center flex flex-col items-center justify-center space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-center">
+                        <Star className="w-8 h-8 text-slate-200 animate-pulse" />
+                    </div>
                     <div className="space-y-1">
-                        <p className="font-semibold">AI is Listening</p>
-                        <p className="text-sm text-muted-foreground">Answer the question to receive real-time evaluation.</p>
+                        <p className="text-sm font-bold text-slate-600">Waiting for response...</p>
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">AI will evaluate your first answer live</p>
                     </div>
                 </CardContent>
             </Card>
@@ -25,40 +32,44 @@ export default function ScoreIndicator({ feedback, currentDifficulty }: ScoreInd
     }
 
     const scorePercentage = (feedback.score / 10) * 100;
-
+    
     const getScoreColor = (score: number) => {
-        if (score >= 8) return 'text-green-500';
-        if (score >= 5) return 'text-yellow-500';
-        return 'text-red-500';
-    };
-
-    const getScoreIcon = (score: number) => {
-        if (score >= 8) return <Sparkles className="w-8 h-8 text-green-500" />;
-        if (score >= 5) return <TrendingUp className="w-8 h-8 text-yellow-500" />;
-        return <AlertTriangle className="w-8 h-8 text-red-500" />;
+        if (score >= 8) return 'text-green-600 bg-green-50 border-green-100';
+        if (score >= 5) return 'text-amber-600 bg-amber-50 border-amber-100';
+        return 'text-red-600 bg-red-50 border-red-100';
     };
 
     return (
-        <Card className="overflow-hidden border-border bg-card shadow-md animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <CardHeader className="bg-muted/50 pb-4">
-                <CardTitle className="flex justify-between items-center text-lg">
-                    <span>Real-time Evaluation</span>
-                    {getScoreIcon(feedback.score)}
+        <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden animate-in fade-in zoom-in duration-500">
+            <CardHeader className="bg-slate-50 border-b py-4 px-6">
+                <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Award className="w-3 h-3 text-primary" />
+                        Real-time Evaluation
+                    </div>
+                    <span className={`px-3 py-1 rounded-full border ${getScoreColor(feedback.score)}`}>
+                        {feedback.score}/10
+                    </span>
                 </CardTitle>
             </CardHeader>
 
-            <CardContent className="pt-6 space-y-6">
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm font-medium">
-                        <span>Technical Score</span>
-                        <span className={getScoreColor(feedback.score)}>{feedback.score}/10</span>
+            <CardContent className="p-8 space-y-6">
+                <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Performance Score</span>
+                        <span className="text-xl font-black text-slate-900">{scorePercentage}%</span>
                     </div>
-                    <Progress value={scorePercentage} className="h-2" />
+                    <Progress value={scorePercentage} className="h-2 rounded-full bg-slate-100" />
                 </div>
 
-                <div className="bg-secondary/40 p-4 rounded-lg text-sm border border-secondary">
-                    <strong className="block mb-2 text-foreground/80">AI Feedback:</strong>
-                    <p className="text-muted-foreground leading-relaxed">{feedback.text}</p>
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
+                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Expert Feedback</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-600 leading-relaxed italic pr-2">
+                        "{feedback.text}"
+                    </p>
                 </div>
             </CardContent>
         </Card>

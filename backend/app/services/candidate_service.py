@@ -40,7 +40,18 @@ class CandidateService:
         }
         
         if stage_name in status_map:
-            application.status = status_map[stage_name]
+            new_status = status_map[stage_name]
+            
+            # Prevent status regression (e.g. don't set back to 'applied' if already 'screened' or further)
+            current_status = application.status or "applied"
+            
+            # Simple heuristic: If we are in 'applied' stage, only update if current is 'applied'.
+            # If we are in later stages, always update.
+            if new_status == "applied":
+                if current_status == "applied":
+                    application.status = new_status
+            else:
+                application.status = new_status
 
         # Create or update the stage record
         stage = self.db.query(ApplicationStage).filter(

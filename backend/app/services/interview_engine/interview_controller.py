@@ -59,6 +59,9 @@ async def process_interview_message(session_id: str, data: dict):
                         "type": "question",
                         "question": current_q.question_text,
                         "difficulty": interview.current_difficulty or "medium",
+                        "question_number": current_q.question_number,
+                        "total_questions": interview.total_questions or 30,
+                        "options": json.loads(current_q.options) if current_q.options else None,
                         "resumed": True
                     }, session_id)
                     return
@@ -160,6 +163,76 @@ async def process_interview_message(session_id: str, data: dict):
                 logger.error(f"Atomic update failed: {atomic_err}", exc_info=True)
                 raise atomic_err
 
+        elif action == "jump_to_question":
+            num = data.get("number")
+            if not num: return
+            
+            logger.info(f"User jumping to question {num} for interview {interview_id}")
+            
+            # Fetch specific question
+            q = db.query(InterviewQuestion).filter(
+                InterviewQuestion.interview_id == interview_id,
+                InterviewQuestion.question_number == num
+            ).first()
+            
+            if q:
+                # Check for answer
+                ans = db.query(InterviewAnswer).filter(InterviewAnswer.question_id == q.id).first()
+                await session_manager.send_personal_message({
+                    "type": "question",
+                    "question": q.question_text,
+                    "difficulty": interview.current_difficulty or "medium",
+                    "question_number": q.question_number,
+                    "total_questions": interview.total_questions or 30,
+                    "options": json.loads(q.options) if q.options else None,
+                    "answer_text": ans.answer_text if ans else None,
+                    "score": ans.answer_score if ans else None
+                }, session_id)
+            else:
+                # If jumping to the NEXT immediate question that should be generated
+                if num == interview.questions_asked + 1:
+                    await session_manager.send_personal_message({"type": "system", "message": "Generating next challenge..."}, session_id)
+                    await _generate_and_send_next_question(db, interview, session_id)
+                    db.commit()
+                else:
+                    await session_manager.send_personal_message({"type": "error", "message": "Complete the current question first to move forward."}, session_id)
+
+        elif action == "jump_to_section":
+            section = data.get("section", "technical")
+            # Set questions_asked to start of section if needed, or just let it flow
+            target_q = 1
+            if section == "technical": target_q = 11
+            elif section == "behavioral": target_q = 26
+            
+            logger.info(f"User jumping to section: {section} (Q{target_q})")
+            # Logic: If question exists, jump. If not, generate.
+            q = db.query(InterviewQuestion).filter(
+                InterviewQuestion.interview_id == interview_id,
+                InterviewQuestion.question_number == target_q
+            ).first()
+            
+            if q:
+                await session_manager.send_personal_message({"type": "system", "message": f"Switching to {section.capitalize()}..."}, session_id)
+                # reuse jump_to_question logic via recursion or just copy
+                ans = db.query(InterviewAnswer).filter(InterviewAnswer.question_id == q.id).first()
+                await session_manager.send_personal_message({
+                    "type": "question",
+                    "question": q.question_text,
+                    "difficulty": interview.current_difficulty or "medium",
+                    "question_number": q.question_number,
+                    "total_questions": interview.total_questions or 30,
+                    "options": json.loads(q.options) if q.options else None,
+                    "answer_text": ans.answer_text if ans else None,
+                    "score": ans.answer_score if ans else None
+                }, session_id)
+            else:
+                # If target is next, generate
+                if target_q == interview.questions_asked + 1:
+                    await _generate_and_send_next_question(db, interview, session_id)
+                    db.commit()
+                else:
+                    await session_manager.send_personal_message({"type": "error", "message": "Complete previous sections first."}, session_id)
+
     except Exception as e:
         logger.error(f"WS Controller Error: {e}", exc_info=True)
         db.rollback()
@@ -173,6 +246,10 @@ async def _generate_and_send_next_question(db, interview, session_id: str):
     history_ans = db.query(InterviewAnswer).filter(InterviewAnswer.interview_id == interview.id).all()
     history_context = [{"question": "Previously asked", "answer": a.answer_text} for a in history_ans] # Minimal summary
 
+    # Determine round type based on question number
+    q_num = interview.questions_asked + 1
+    round_type = "Aptitude" if q_num <= 10 else "Technical" if q_num <= 25 else "Behavioral"
+    
     # Simplified skill context for generator
     skills = ["Software Engineering"]
     if interview.application and interview.application.job:
@@ -180,7 +257,7 @@ async def _generate_and_send_next_question(db, interview, session_id: str):
 
     question_data_list = await generate_questions(
         skills[0], 
-        "Any", 
+        round_type, # Pass round_type as experience level/stage context
         skills, 
         history_context, 
         interview.current_difficulty or "medium"
@@ -197,13 +274,14 @@ async def _generate_and_send_next_question(db, interview, session_id: str):
         # Fallback for older list-based legacy response
         question_text = question_data_list[0]
 
-    # Persist the question with its rubric
+    # Persist the question with its rubric/options
     new_q = InterviewQuestion(
         interview_id=interview.id,
-        question_number=interview.questions_asked + 1,
+        question_number=q_num,
         question_text=question_text,
-        question_type="adaptive",
-        expected_points=expected_points
+        question_type=round_type.lower(),
+        expected_points=expected_points,
+        options=json.dumps(expected_points) if round_type == "Aptitude" else None
     )
     db.add(new_q)
     db.commit()
@@ -211,5 +289,8 @@ async def _generate_and_send_next_question(db, interview, session_id: str):
     await session_manager.send_personal_message({
         "type": "question",
         "question": question_text,
-        "difficulty": interview.current_difficulty or "medium"
+        "difficulty": interview.current_difficulty or "medium",
+        "question_number": q_num,
+        "total_questions": interview.total_questions or 30,
+        "options": expected_points if round_type == "Aptitude" else None
     }, session_id)

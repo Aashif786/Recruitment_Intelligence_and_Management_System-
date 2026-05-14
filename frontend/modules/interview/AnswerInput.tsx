@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Mic, MicOff, Loader2, Send } from 'lucide-react';
-import { toast } from 'sonner';
+import { Mic, MicOff, Loader2, Send, ShieldAlert } from 'lucide-react';
 
 interface AnswerInputProps {
     onSubmit: (answer: string) => void;
+    onPrev?: () => void;
+    onNext?: () => void;
     disabled: boolean;
     isEvaluating?: boolean;
     interviewId?: string;
@@ -14,10 +15,16 @@ interface AnswerInputProps {
     isTranscribing?: boolean;
     onStartRecording?: (callback: (text: string) => void) => void;
     onStopRecording?: () => void;
+    isStuck?: boolean;
+    onRetry?: () => void;
+    options?: string[];
+    initialValue?: string | null;
 }
 
 export default function AnswerInput({
     onSubmit,
+    onPrev,
+    onNext,
     disabled,
     isEvaluating = false,
     interviewId,
@@ -25,8 +32,30 @@ export default function AnswerInput({
     isTranscribing = false,
     onStartRecording,
     onStopRecording,
+    isStuck = false,
+    onRetry,
+    options = [],
+    initialValue = '',
 }: AnswerInputProps) {
     const [text, setText] = useState('');
+    const [selectedOption, setSelectedOption] = useState<number | null>(null);
+
+    // Sync initial value when question changes
+    useEffect(() => {
+        if (options.length > 0 && initialValue) {
+            const index = initialValue.charCodeAt(0) - 65;
+            if (index >= 0 && index < options.length) {
+                setSelectedOption(index);
+                setText('');
+            } else {
+                setSelectedOption(null);
+                setText(initialValue || '');
+            }
+        } else {
+            setSelectedOption(null);
+            setText(initialValue || '');
+        }
+    }, [initialValue, options]);
 
     const handleTranscriptionResult = (transcribedText: string) => {
         setText((prev) => {
@@ -35,7 +64,8 @@ export default function AnswerInput({
         });
     };
 
-    const handleMicClick = () => {
+    const handleMicClick = (e: React.MouseEvent) => {
+        e.preventDefault();
         if (isListening) {
             onStopRecording?.();
         } else {
@@ -45,77 +75,102 @@ export default function AnswerInput({
 
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();
-        // If user submits while listening, stop it first
         if (isListening) onStopRecording?.();
         
-        if (text.trim() && !disabled) {
-            onSubmit(text);
+        const finalAnswer = options.length > 0 && selectedOption !== null 
+            ? String.fromCharCode(65 + selectedOption)
+            : text.trim();
+
+        if (finalAnswer && !disabled) {
+            onSubmit(finalAnswer);
             setText('');
+            setSelectedOption(null);
         }
     };
 
+    const isMCQ = options && options.length > 0;
+
     return (
-        <Card className="w-full shadow-sm border-t-4 border-t-primary/20 bg-white">
-            <CardContent className="p-6">
-                <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
-                    <Textarea
-                        placeholder={isEvaluating ? "AI is processing your answer..." : disabled ? "Waiting for the AI..." : "Type your answer here, or click the mic to speak..."}
-                        className="min-h-[150px] resize-y text-lg p-6 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-2xl"
-                        value={text}
-                        onChange={(e) => setText(e.target.value)}
-                        disabled={disabled || isEvaluating}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.ctrlKey) {
-                                e.preventDefault();
-                                handleSubmit();
-                            }
-                        }}
-                    />
-                    <div className="flex justify-between items-center">
-                        <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                {isEvaluating ? (
-                                    <span className="text-primary animate-pulse flex items-center gap-1">
-                                        <Loader2 className="w-3 h-3 animate-spin" /> AI is thinking...
-                                    </span>
-                                ) : isListening ? (
-                                    <span className="text-red-500 animate-pulse flex items-center gap-1">
-                                        <Mic className="w-3 h-3" /> Recording Live...
-                                    </span>
-                                ) : isTranscribing ? (
-                                    <span className="text-blue-500 flex items-center gap-1">
-                                        <Loader2 className="w-3 h-3 animate-spin" /> Processing Audio...
-                                    </span>
-                                ) : (
-                                    "Ready to answer"
-                                )}
-                            </span>
-                            <span className="text-[10px] text-slate-400 mt-1">Press <b>Ctrl + Enter</b> to quick-submit</span>
+        <Card className="w-full shadow-sm border border-slate-200 bg-white rounded-3xl overflow-hidden">
+            <CardContent className="p-10">
+                <form onSubmit={handleSubmit} className="flex flex-col space-y-8">
+                    {isMCQ ? (
+                        <div className="space-y-6">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Select One Option</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {options.map((opt, i) => (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => setSelectedOption(i)}
+                                        className={`p-6 rounded-2xl border-2 text-left transition-all flex items-center gap-4 group ${selectedOption === i ? 'bg-blue-50 border-blue-600 shadow-lg shadow-blue-100' : 'bg-slate-50 border-transparent hover:border-slate-200 hover:bg-white'}`}
+                                    >
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm transition-colors ${selectedOption === i ? 'bg-blue-600 text-white' : 'bg-white border-2 border-slate-100 text-slate-400 group-hover:border-blue-200 group-hover:text-blue-500'}`}>
+                                            {String.fromCharCode(65 + i)}
+                                        </div>
+                                        <span className={`text-lg font-bold ${selectedOption === i ? 'text-blue-900' : 'text-slate-600'}`}>{opt}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <Button 
+                    ) : (
+                        <div className="space-y-6">
+                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Detailed Response</span>
+                             <Textarea
+                                placeholder={isEvaluating ? "The board is reviewing your response..." : "Provide your response here, or use the microphone to speak..."}
+                                className="min-h-[180px] resize-y text-lg p-8 bg-slate-50 focus:bg-white transition-all rounded-3xl border-slate-200 focus:ring-2 focus:ring-primary/20"
+                                value={text}
+                                onChange={(e) => setText(e.target.value)}
+                                disabled={disabled || isEvaluating}
+                            />
+                        </div>
+                    )}
+                    
+                    <div className="flex justify-between items-center pt-4">
+                        <div className="flex items-center gap-6">
+                            <button 
                                 type="button" 
-                                variant={isListening ? "destructive" : "outline"}
-                                size="icon" 
-                                disabled={disabled || isTranscribing} 
-                                onClick={handleMicClick}
-                                title={isListening ? "Stop Recording" : "Start Voice Dictation"}
-                                className={`w-12 h-12 rounded-2xl transition-all ${isListening ? "animate-pulse shadow-lg shadow-red-500/20" : "hover:border-blue-500 hover:text-blue-600 shadow-sm"}`}
+                                onClick={onPrev}
+                                className="flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-30"
+                                disabled={!onPrev}
                             >
-                                {isTranscribing ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                ) : isListening ? (
-                                    <MicOff className="w-5 h-5" />
-                                ) : (
-                                    <Mic className="w-5 h-5" />
-                                )}
+                                <span className="text-xs font-black uppercase tracking-widest">{'<'} Prev</span>
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={onNext}
+                                className="flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-30"
+                                disabled={!onNext}
+                            >
+                                <span className="text-xs font-black uppercase tracking-widest">Next {'>'}</span>
+                            </button>
+                            <span className="text-[10px] text-slate-400 font-medium italic">Answer each question and submit to move forward</span>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <Button variant="ghost" className="h-14 px-8 rounded-2xl bg-slate-100 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-50">
+                                End Early
                             </Button>
+                            
+                            {!isMCQ && (
+                                <Button 
+                                    type="button" 
+                                    variant={isListening ? "destructive" : "outline"}
+                                    size="icon" 
+                                    disabled={disabled || isTranscribing} 
+                                    onClick={handleMicClick}
+                                    className={`w-14 h-14 rounded-2xl shadow-sm transition-all ${isListening ? "animate-pulse shadow-lg shadow-red-500/20" : "hover:border-primary hover:text-primary"}`}
+                                >
+                                    {isTranscribing ? <Loader2 className="w-5 h-5 animate-spin" /> : isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                                </Button>
+                            )}
+
                             <Button 
                                 type="submit" 
-                                disabled={disabled || (!text.trim() && !isListening)} 
-                                className="h-12 px-8 rounded-2xl shadow-lg shadow-primary/20 font-black text-sm uppercase tracking-widest"
+                                disabled={disabled || (!text.trim() && selectedOption === null && !isListening)} 
+                                className={`h-14 px-10 rounded-2xl shadow-lg font-black text-sm uppercase tracking-widest transition-all ${selectedOption !== null || text.trim() ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}
                             >
-                                <Send className="w-4 h-4 mr-2" /> Submit Answer
+                                Submit Answer <Send className="w-4 h-4 ml-2" />
                             </Button>
                         </div>
                     </div>

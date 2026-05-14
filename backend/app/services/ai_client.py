@@ -78,7 +78,7 @@ class AIClient:
         )
         return response.choices[0].message.content
 
-    async def generate(self, prompt: str, system_instr: str = "You are a helpful assistant", model: str = "llama-3.3-70b-versatile") -> str:
+    async def generate(self, prompt: str, system_instr: str = "You are a helpful assistant", model: str = "llama-3.1-8b-instant") -> str:
         """Centralized generator with resilience and safety."""
         if self.disabled:
             logger.warning("AI Disabled - Returning graceful fallback response.")
