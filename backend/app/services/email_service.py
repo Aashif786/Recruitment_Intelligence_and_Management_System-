@@ -542,7 +542,7 @@ async def send_approved_for_interview_email(to_email: str, job_title: str, raw_a
     # We rely on send_interview_invitation_email wrapper to pass the application object.
     return await execute_email_with_retries(to_email, subject, body, event_type="INTERVIEW_INVITE")
 
-async def send_hired_email(to_email: str, job_title: str, interview=None, offer_letter_path: str = None):
+async def send_hired_email(to_email: str, job_title: str, interview=None, offer_letter_path: str = None, application: Any = None):
     subject = "Congratulations! You have been selected"
     body = f"""
     <html><body style="font-family:sans-serif; color:#333;">
@@ -590,6 +590,7 @@ async def send_hired_email(to_email: str, job_title: str, interview=None, offer_
 
     return await execute_email_with_retries(
         to_email, subject, body, 
+        application=application,
         attachments=attachments if attachments else None,
         event_type="HIRED_NOTICE"
     )
@@ -660,7 +661,7 @@ async def send_offer_letter_email(to_email: str, candidate_name: str, company_na
     )
 
 
-async def send_rejected_email(to_email: str, job_title: str, is_ai_auto_reject: bool = False):
+async def send_rejected_email(to_email: str, job_title: str, is_ai_auto_reject: bool = False, application: Any = None):
     subject = f"Update on your application for {job_title}"
     reason = "we found that your resume did not align closely enough with the job requirements." if is_ai_auto_reject else "we have decided to move forward with other candidates at this time."
     body = f"""
@@ -671,7 +672,7 @@ async def send_rejected_email(to_email: str, job_title: str, is_ai_auto_reject: 
       <p>We encourage you to apply for future roles that match your skills!</p>
     </body></html>
     """
-    return await execute_email_with_retries(to_email, subject, body, event_type="REJECTED_NOTICE")
+    return await execute_email_with_retries(to_email, subject, body, application=application, event_type="REJECTED_NOTICE")
 
 async def send_call_for_interview_email(to_email: str, job_title: str):
     subject = f"Interview Invitation — {job_title}"

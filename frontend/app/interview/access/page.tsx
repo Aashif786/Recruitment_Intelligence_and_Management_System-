@@ -42,7 +42,7 @@ function InterviewAccessForm() {
       if (!res.ok) throw new Error(data.detail || 'Access failed')
       // Store interview JWT separately to avoid clobbering global HR/admin auth.
       localStorage.setItem('interview_token', data.access_token)
-      router.push('/interview/live/' + data.interview_id)
+      router.push('/interview/' + data.interview_id)
     } catch (err: any) {
       setError(err.message)
       isSubmittingRef.current = false

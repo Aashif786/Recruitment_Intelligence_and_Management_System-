@@ -742,7 +742,7 @@ async def process_application_background(application_id: int, job_id: int, abs_f
             else:
                 resume_text = response.decode('utf-8', errors='ignore')
 
-            # Post-extraction sanity check: If very little text was found in a large PDF, it's likely a scanned image.
+            # Post-extraction sanity check for scanned PDFs
             if file_ext == 'pdf' and len(response) > 50000 and len(resume_text.strip()) < 100:
                 resume_text = "[[SCANNED_PDF_DETECTED]]\n" + resume_text
         except Exception as e:
@@ -954,11 +954,7 @@ async def process_application_background(application_id: int, job_id: int, abs_f
                      application.status = CandidateState.PERMANENT_FAILURE.value
                      application.failure_reason = "[PERMANENT_FAILURE]: " + application.failure_reason
 
-                # Never write raw exception details (may include internal SQL / query text) into HR-visible notes.
-                application.hr_notes = (
-                    "AI analysis failed. Please click "
-                    "Retry Analysis to reprocess."
-                )
+                # Error details are now handled by the frontend via failure_reason
                 _append_extraction_degraded_marker(application)
                 db.commit()
                 try:
@@ -1411,11 +1407,7 @@ async def retry_application_background(application_id: int, job_id: int, bucket_
                 failed_app.resume_status = "failed"
                 failed_app.retry_count = (failed_app.retry_count or 0) + 1
                 failed_app.failure_reason = str(e)[:1000] # Cap length
-                # Never write raw exception details (may include internal SQL / query text) into HR-visible notes.
-                failed_app.hr_notes = (
-                    "AI analysis failed. Please click "
-                    "Retry Analysis to reprocess."
-                )
+                # Error details are now handled by the frontend via failure_reason
                 db.commit()
             try:
                 log_json(
@@ -1673,11 +1665,12 @@ async def update_application_status(
     )
 
     if result.email_type == "approved_for_interview" and raw_access_key:
-        logger.info(f"[EMAIL] Scheduling approved_for_interview email to {candidate_email}")
-        background_tasks.add_task(send_approved_for_interview_email, candidate_email, job_title, raw_access_key)
+        logger.info(f"[EMAIL] Scheduling interview invitation email to {candidate_email}")
+        from app.services.email_service import send_interview_invitation_email
+        background_tasks.add_task(send_interview_invitation_email, application, raw_access_key)
     elif result.email_type == "rejected":
         logger.info(f"[EMAIL] Scheduling rejected email to {candidate_email}")
-        background_tasks.add_task(send_rejected_email, candidate_email, job_title, False)
+        background_tasks.add_task(send_rejected_email, candidate_email, job_title, False, application)
     elif result.email_type == "call_for_interview":
         logger.info(f"[EMAIL] Scheduling call_for_interview email to {candidate_email}")
         from app.services.email_service import send_call_for_interview_email
@@ -1685,7 +1678,7 @@ async def update_application_status(
     elif result.email_type == "hired":
         logger.info(f"[EMAIL] Scheduling hired email to {candidate_email}")
         from app.services.email_service import send_hired_email
-        background_tasks.add_task(send_hired_email, candidate_email, job_title, application.interview)
+        background_tasks.add_task(send_hired_email, candidate_email, job_title, application.interview, None, application)
     elif result.email_type:
         logger.warning(f"[EMAIL] No email trigger matched for email_type={result.email_type}")
     # ────────────────────────────────────────────────────────────────────

@@ -534,9 +534,24 @@ export default function HRApplicationDetailPage() {
                                     </div>
                                 ) : resumeStatus === 'failed' ? (
                                     <div className="text-center py-10 space-y-4">
-                                        <XCircle className="h-8 w-8 text-red-400 mx-auto" />
-                                        <p className="text-red-700 font-medium text-sm">Resume analysis failed. Check HR notes, then retry.</p>
-                                        <Button variant="outline" size="sm" onClick={handleRetryAnalysis} disabled={actionLoading === 'retry'}>Retry Analysis</Button>
+                                        <div className="bg-red-50 dark:bg-red-500/10 border-2 border-red-100 dark:border-red-500/20 p-4 rounded-2xl max-w-sm mx-auto shadow-sm">
+                                            <XCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                                            <p className="text-red-700 dark:text-red-400 font-bold text-sm mb-1 uppercase tracking-tight">Analysis Failed</p>
+                                            <p className="text-xs text-red-600/80 dark:text-red-400/60 leading-tight mb-4 italic">
+                                                {application.failure_reason || "Unknown error during parsing. Please check file format and retry."}
+                                            </p>
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                onClick={handleRetryAnalysis} 
+                                                disabled={actionLoading === 'retry'}
+                                                className="w-full bg-white dark:bg-slate-900 border-red-200 hover:bg-red-50 font-bold transition-all shadow-sm"
+                                            >
+                                                {actionLoading === 'retry' ? (
+                                                    <><RotateCw className="h-3 w-3 mr-2 animate-spin" /> Retrying...</>
+                                                ) : 'Retry Analysis Now'}
+                                            </Button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="text-center py-10 space-y-4">

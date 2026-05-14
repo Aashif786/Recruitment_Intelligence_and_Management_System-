@@ -141,6 +141,8 @@ export default function HRJobsPage() {
         }
     };
 
+    const openJobsCount = useMemo(() => jobs.filter(j => j.status === 'open').length, [jobs])
+
     return (
         <div className="space-y-8">
             <PageHeader
@@ -149,11 +151,20 @@ export default function HRJobsPage() {
                 icon={Briefcase}
             >
                 <div className="flex items-center gap-4">
-                    <div className="bg-primary/10 dark:bg-white/5 border border-primary/20 dark:border-white/10 rounded-2xl gap-2 px-6 py-4 flex  items-end shadow-sm">
-                        <span className="text-[14px] font-bold text-primary dark:text-slate-200 uppercase tracking-widest">Total Jobs </span>
-                        <span className="text-[14px] font-black text-primary dark:text-white tabular-nums">
-                            {isLoading ? "..." : filteredJobs.length}
-                        </span>
+                    <div className="bg-primary/10 dark:bg-white/5 border border-primary/20 dark:border-white/10 rounded-2xl gap-2 px-6 py-4 flex items-center shadow-sm">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-primary/60 dark:text-slate-400 uppercase tracking-widest leading-tight">Active</span>
+                            <span className="text-[18px] font-black text-primary dark:text-white tabular-nums leading-none">
+                                {isLoading ? "..." : openJobsCount}
+                            </span>
+                        </div>
+                        <div className="w-px h-8 bg-primary/20 mx-2" />
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-tight">Total</span>
+                            <span className="text-[18px] font-black text-muted-foreground tabular-nums leading-none">
+                                {isLoading ? "..." : jobs.length}
+                            </span>
+                        </div>
                     </div>
                     <Link href="/dashboard/hr/jobs/create">
                         <Button className="h-14 px-6 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20 transition-all flex items-center gap-2">

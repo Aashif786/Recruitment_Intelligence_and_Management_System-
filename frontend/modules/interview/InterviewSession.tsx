@@ -298,9 +298,14 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
 
   if (!isConnected && !isFinished) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 space-y-4">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <h2 className="text-xl font-semibold">Connecting to AI Interview Engine...</h2>
+      <div className="flex flex-col min-h-[60vh]">
+        <div className="bg-amber-100 border-b border-amber-300 text-amber-950 text-center text-sm py-2.5 px-4 font-medium">
+          Demo mode — not linked to official interview record.
+        </div>
+        <div className="flex flex-col items-center justify-center flex-1 space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <h2 className="text-xl font-semibold">Connecting to AI Interview Engine...</h2>
+        </div>
       </div>
     );
   }
@@ -308,6 +313,9 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
   if (isFinished) {
     return (
       <div className="flex flex-col">
+        <div className="bg-amber-100 border-b border-amber-300 text-amber-950 text-center text-sm py-2.5 px-4 font-medium">
+          Demo mode — not linked to official interview record.
+        </div>
         <Card className="max-w-3xl mx-auto mt-12 bg-card border-primary/20 shadow-lg">
         <CardHeader>
           <CardTitle className="text-center text-3xl text-primary">Interview Complete</CardTitle>
@@ -325,6 +333,9 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
 
   return (
     <div className="flex flex-col">
+      <div className="bg-amber-100 border-b border-amber-300 text-amber-950 text-center text-sm py-2.5 px-4 font-medium">
+        Demo mode — not linked to official interview record.
+      </div>
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 p-4 w-full">
       <div className="md:col-span-2 space-y-6">
         <QuestionPanel question={currentQuestion} isLoading={!currentQuestion} />

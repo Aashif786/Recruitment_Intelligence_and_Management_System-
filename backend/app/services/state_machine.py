@@ -289,22 +289,7 @@ class CandidateStateMachine:
             is_critical=is_critical,
         )
 
-        # ─── Fix: Interview Invitation Email Trigger ──────────────────
-        if target_state.value == "interview_scheduled":
-            try:
-                if not application or not application.candidate_email:
-                    logger.error(f"[EMAIL][FAILED] Missing email for App #{getattr(application, 'id', 'UNKNOWN')}")
-                elif getattr(application, "_email_sent", False):
-                    logger.warning(f"[EMAIL][SKIPPED] Duplicate prevented for App #{application.id}")
-                elif background_tasks:
-                   background_tasks.add_task(send_interview_invitation_email, application)
-                   application._email_sent = True
-                   logger.info(f"[EMAIL] Interview invitation queued for App #{application.id}")
-                else:
-                   logger.warning(f"[EMAIL][SKIPPED] background_tasks not available for App #{application.id}")
-            except Exception as e:
-                logger.error(f"[EMAIL][FAILED] Interview email for App #{getattr(application, 'id', 'UNKNOWN')}: {str(e)}")
-        # ──────────────────────────────────────────────────────────────
+        )
 
 
         # 5. Handle Automated Side Effects (Point 3)

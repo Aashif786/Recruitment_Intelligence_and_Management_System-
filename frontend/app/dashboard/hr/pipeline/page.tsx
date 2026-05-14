@@ -25,6 +25,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface Job {
     id: number
@@ -36,6 +37,7 @@ interface Job {
 }
 
 export default function PipelineIndexPage() {
+    const router = useRouter()
     const { data: jobs, isLoading } = useSWR<Job[]>('/api/jobs?limit=500', fetcher)
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize, setPageSize] = useState(10)
@@ -67,7 +69,7 @@ export default function PipelineIndexPage() {
         return filteredJobs.slice(start, start + pageSize)
     }, [filteredJobs, currentPage, pageSize])
 
-    const totalPages = Math.ceil(filteredJobs.length / pageSize)
+    const totalPages = Math.ceil((filteredJobs.length) / pageSize)
 
     if (isLoading) return (
         <div className="p-8 flex justify-center items-center h-64">
@@ -114,7 +116,11 @@ export default function PipelineIndexPage() {
                     </TableHeader>
                     <TableBody>
                         {paginatedJobs.map((job) => (
-                            <TableRow key={job.id} className="hover:bg-primary/5 transition-colors group">
+                            <TableRow 
+                                key={job.id} 
+                                className="hover:bg-primary/5 transition-colors group cursor-pointer"
+                                onClick={() => router.push(`/dashboard/hr/pipelines/${job.id}`)}
+                            >
                                 <TableCell className="py-4">
                                     <div className="flex items-center gap-3">
                                         <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
@@ -140,12 +146,17 @@ export default function PipelineIndexPage() {
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right pr-6">
-                                    <Link href={`/dashboard/hr/pipelines/${job.id}`}>
-                                        <Button variant="ghost" className="h-9 gap-2 font-bold text-primary group-hover:translate-x-1 transition-transform">
-                                            Open Pipeline
-                                            <ArrowRight className="h-4 w-4" />
-                                        </Button>
-                                    </Link>
+                                    <Button 
+                                        variant="ghost" 
+                                        className="h-9 gap-2 font-bold text-primary group-hover:translate-x-1 transition-transform"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            router.push(`/dashboard/hr/pipelines/${job.id}`);
+                                        }}
+                                    >
+                                        Open Pipeline
+                                        <ArrowRight className="h-4 w-4" />
+                                    </Button>
                                 </TableCell>
                             </TableRow>
                         ))}
