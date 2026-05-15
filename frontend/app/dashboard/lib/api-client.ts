@@ -69,7 +69,7 @@ export class APIClient {
     const controller = new AbortController()
     const timeout = customTimeoutMs ?? this.TIMEOUT_MS
     const id = setTimeout(() => controller.abort(), timeout)
-    
+
     try {
       const response = await fetch(url, { ...options, signal: controller.signal })
       clearTimeout(id)
@@ -184,10 +184,10 @@ export class APIClient {
       return {} as T
     }
 
-    const result = await response.json().catch(() => ({ 
-      success: false, 
-      data: null, 
-      error: `Error ${response.status}: ${response.statusText}` 
+    const result = await response.json().catch(() => ({
+      success: false,
+      data: null,
+      error: `Error ${response.status}: ${response.statusText}`
     }))
 
     const isStandardFormat = result && typeof result === 'object' && 'success' in result
@@ -206,7 +206,7 @@ export class APIClient {
           response.url?.includes('/api/tickets') ||
           response.url?.includes('/api/applications') ||
           response.status === 401; // Primary UX fix: don't flood on 401
-        
+
         if (!isSilentEndpoint) {
           toast.error(`Error ${response.status}: ${errorMessage}`)
         }
@@ -230,7 +230,7 @@ export class APIClient {
           }
         }
       }
-      
+
       // CRITICAL: Throw so that performMutation and other callers detect the failure
       throw new Error(errorMessage)
     }

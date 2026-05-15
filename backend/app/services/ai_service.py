@@ -746,9 +746,9 @@ async def generate_custom_domain_questions_with_meta(
         pass
     return meta
 
-async def generate_behavioral_batch(count: int, behavioral_role: str = "general"):
+async def generate_behavioral_batch(count: int, behavioral_role: str = "general", job_title: str = "", job_description: str = ""):
     """Generate a batch of behavioral questions using the improved batch generator."""
-    return await question_gen.generate_behavioral_questions_batch(count=count, behavioral_role=behavioral_role)
+    return await question_gen.generate_behavioral_questions_batch(count=count, behavioral_role=behavioral_role, job_title=job_title, job_description=job_description)
 
 async def generate_aptitude_batch(count: int):
     """Generate a batch of aptitude questions using the QuestionGenerator."""

@@ -1166,7 +1166,7 @@ def get_hr_applications(
         # Apply visibility isolation: Anyone not a super_admin is restricted to their own apps
         if current_user.role.lower() not in ["super_admin", "admin"]:
             # Standard HR sees jobs they own OR apps they are assigned to
-            query = query.join(Application.job)
+            # Note: Job is already joined via outerjoin at the start of the query
             query = query.filter(or_(Job.hr_id == current_user.id, Application.hr_id == current_user.id))
         # Super Admin sees all.
 

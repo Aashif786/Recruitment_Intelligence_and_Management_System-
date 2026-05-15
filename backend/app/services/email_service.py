@@ -788,3 +788,50 @@ async def send_joining_confirmation_email(to_email: str, candidate_name: str, jo
         attachments=attachments if attachments else None,
         event_type="JOINING_CONFIRMATION"
     )
+
+
+async def send_interview_completed_email(application: Any):
+    """Notify candidate that their interview session has been successfully saved."""
+    subject = f"Interview Completed: {application.job.title}"
+    body = f"""
+    <html><body style="font-family:sans-serif; color:#333;">
+      <h2 style="color:#2563eb;">Interview Successfully Completed</h2>
+      <p>Hello {application.candidate_name},</p>
+      <p>Thank you for completing your interview for the <strong>{application.job.title}</strong> position.</p>
+      <p>Your responses and technical assessment have been successfully recorded. Our HR team will review your report and get back to you with the next steps.</p>
+      <p>Best Regards,<br>The Recruitment Team</p>
+    </body></html>
+    """
+    return await execute_email_with_retries(
+        application.candidate_email, 
+        subject, 
+        body, 
+        application=application,
+        event_type="INTERVIEW_COMPLETED_NOTICE"
+    )
+
+
+async def send_interview_terminated_email(application: Any, reason: str):
+    """Notify candidate that their session was terminated due to policy violations."""
+    subject = f"Urgent: Interview Session Terminated - {application.job.title}"
+    
+    reason_text = "policy violations (such as multiple tab switches or loss of camera focus)"
+    if "misconduct" in reason.lower():
+        reason_text = "inappropriate language or conduct detected during the session"
+    
+    body = f"""
+    <html><body style="font-family:sans-serif; color:#333;">
+      <h2 style="color:#ef4444;">Session Terminated</h2>
+      <p>Hello {application.candidate_name},</p>
+      <p>Your interview session for <strong>{application.job.title}</strong> has been automatically terminated due to <strong>{reason_text}</strong>.</p>
+      <p>If you believe this was a technical error, please reach out to our support team immediately via the support portal or reply to this email.</p>
+      <p>Best Regards,<br>Recruitment Compliance Team</p>
+    </body></html>
+    """
+    return await execute_email_with_retries(
+        application.candidate_email, 
+        subject, 
+        body, 
+        application=application,
+        event_type="INTERVIEW_TERMINATED_NOTICE"
+    )

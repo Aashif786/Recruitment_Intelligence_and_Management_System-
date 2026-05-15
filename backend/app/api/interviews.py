@@ -621,7 +621,7 @@ async def _generate_first_level_questions(interview: Interview, job: Job, applic
             missing_behav = expected_behav - len(behav_questions)
             if missing_behav > 0:
                 logger.info(f"Interview {interview.id}: upload mode filling {missing_behav} behavioral via AI")
-                ai_behav = await generate_behavioral_batch(missing_behav, behavioral_role=behavioral_role)
+                ai_behav = await generate_behavioral_batch(missing_behav, behavioral_role=behavioral_role, job_title=job.title if job else "", job_description=job.description if job else "")
                 behav_questions.extend(ai_behav)
 
         elif interview_mode == "mixed":
@@ -649,7 +649,7 @@ async def _generate_first_level_questions(interview: Interview, job: Job, applic
                 tech_questions.extend(ai_tech)
 
             logger.info(f"Interview {interview.id}: mixed mode generating {expected_behav} AI behavioral questions")
-            behav_questions = await generate_behavioral_batch(expected_behav, behavioral_role=behavioral_role)
+            behav_questions = await generate_behavioral_batch(expected_behav, behavioral_role=behavioral_role, job_title=job.title if job else "", job_description=job.description if job else "")
 
         else:
             total_basic_count = 5 + basic_count
@@ -688,7 +688,7 @@ async def _generate_first_level_questions(interview: Interview, job: Job, applic
 
             tech_questions = questions_q1_q5 + questions_mid_basic + questions_mid_deep
             logger.debug(f"Interview {interview.id}: AI mode generating {expected_behav} behavioral")
-            behav_questions = await generate_behavioral_batch(expected_behav, behavioral_role=behavioral_role)
+            behav_questions = await generate_behavioral_batch(expected_behav, behavioral_role=behavioral_role, job_title=job.title if job else "", job_description=job.description if job else "")
 
         # Strict validation: must be non-empty strings; do not treat empty/None as success.
         if not isinstance(tech_questions, list) or not isinstance(behav_questions, list):
@@ -1259,6 +1259,7 @@ async def get_all_questions(
             "evaluated_at": evaluated_at,
             "answer_score": float(ans.answer_score) if ans and ans.answer_score is not None else None,
             "evaluation_pending": bool(ans and ans.evaluated_at is None),
+            "answer_text": ans.answer_text if ans else None,
         })
     return result
 
@@ -1580,13 +1581,10 @@ async def submit_answer(
                 detail="Question not found in this session."
             )
         
-        # 4. Idempotency Check: Prevent duplicate submissions for the same question
+        # 4. Check if answer exists (we will update it instead of rejecting)
         existing_answer = db.query(InterviewAnswer).filter(
             InterviewAnswer.question_id == data.question_id
         ).first()
-        if existing_answer:
-            logger.info(f"Idempotent submission: Question {data.question_id} already answered.")
-            return {"success": True, "answer_id": existing_answer.id, "idempotent_replay": True}
         
         # 5. Termination Protocol (Abusive language / Explicit quit)
         should_terminate = False
@@ -1673,12 +1671,22 @@ async def submit_answer(
                 except Exception as e:
                     logger.warning(f"Failed to resolve aptitude index for session {interview_id}: {e}")
 
-            answer = InterviewAnswer(
-                question_id=current_question.id,
-                interview_id=interview_id,
-                answer_text=stored_answer_text,
-                submitted_at=get_ist_now()
-            )
+            if existing_answer:
+                existing_answer.answer_text = stored_answer_text
+                existing_answer.submitted_at = get_ist_now()
+                # reset evaluation so it gets re-evaluated
+                existing_answer.answer_score = None
+                existing_answer.skill_relevance_score = None
+                existing_answer.answer_evaluation = None
+                existing_answer.evaluated_at = None
+                answer = existing_answer
+            else:
+                answer = InterviewAnswer(
+                    question_id=current_question.id,
+                    interview_id=interview_id,
+                    answer_text=stored_answer_text,
+                    submitted_at=get_ist_now()
+                )
 
             # Auto-grade aptitude MCQs
             if current_question.question_type == "aptitude" and current_question.correct_answer is not None:
@@ -1704,7 +1712,8 @@ async def submit_answer(
                 answer.evaluated_at = get_ist_now()
                 answer.answer_evaluation = json.dumps({"auto_graded": True, "is_correct": is_correct})
 
-            db.add(answer)
+            if not existing_answer:
+                db.add(answer)
             db.commit()
             db.refresh(answer)
         except IntegrityError:
@@ -1897,6 +1906,60 @@ async def complete_aptitude(
 
 
 
+@router.post("/{interview_id}/security-violation")
+async def report_security_violation(
+    interview_id: int,
+    data: dict = Body(...),
+    background_tasks: BackgroundTasks = None,
+    interview_session: Interview = Depends(get_current_interview_any_status),
+    db: Session = Depends(get_db),
+):
+    """
+    Report a proctoring security violation (tab switch, face not detected, multiple people, etc.)
+    Used by the frontend proctoring engine as a REST replacement for the WS security_violation action.
+    """
+    if interview_session.id != interview_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    reason = data.get("reason", "Proctoring violation")
+    logger.warning(f"SECURITY_VIOLATION: Terminating interview {interview_id}. Reason: {reason}")
+
+    interview = db.query(Interview).filter(
+        Interview.id == interview_id
+    ).with_for_update().first()
+
+    if not interview:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+
+    if interview.status in ("terminated", "completed", "cancelled"):
+        return {"ok": True, "already_ended": True, "status": interview.status}
+
+    _set_interview_status(interview, "terminated")
+    interview.interview_stage = STAGE_COMPLETED
+    interview.ended_at = get_ist_now()
+
+    # FSM transition: reject the application
+    try:
+        from app.services.state_machine import CandidateStateMachine, TransitionAction
+        if interview.application:
+            fsm = CandidateStateMachine(db)
+            fsm.transition(
+                interview.application,
+                TransitionAction.REJECT,
+                notes=f"Interview auto-terminated by proctoring system. Reason: {reason}",
+            )
+    except Exception as fsm_err:
+        logger.error(f"FSM transition failed on security violation: {fsm_err}")
+
+    db.commit()
+
+    # Generate final report in background
+    if background_tasks:
+        background_tasks.add_task(_finalize_interview_and_report, interview_id)
+
+    return {"ok": True, "terminated": True, "reason": reason}
+
+
 async def _finalize_interview_and_report(interview_id: int):
     """
     Background-task safe wrapper that creates its own DB session.
@@ -1917,7 +1980,7 @@ async def _finalize_interview_and_report(interview_id: int):
     logger.error(f"Finalize/report failed after retries for interview {interview_id}: {last_err}")
 
 
-async def _finalize_interview_and_report_internal(db: Session, interview_id: int):
+async def _finalize_interview_and_report_internal(db: Session, interview_id: int, term_reason: str = None):
     """
     Internal helper to calculate final scores, generate the AI report, 
     and send notifications. Reusable for normal completion and auto-termination.
@@ -1926,6 +1989,7 @@ async def _finalize_interview_and_report_internal(db: Session, interview_id: int
     from app.core.config import get_settings
     from app.core.storage import get_public_url
     from app.domain.models import InterviewReport, InterviewQuestion, InterviewAnswer, Notification
+    from app.services.email_service import send_interview_completed_email, send_interview_terminated_email
     
     # 1. Fetch live interview state with row-level lock to prevent double reporting
     interview = db.query(Interview).filter(Interview.id == interview_id).with_for_update().first()
@@ -2028,12 +2092,12 @@ async def _finalize_interview_and_report_internal(db: Session, interview_id: int
 
     # 3. Check for termination reason (from InterviewIssue)
     from app.domain.models import InterviewIssue
-    term_reason = None
-    issue = db.query(InterviewIssue).filter(InterviewIssue.interview_id == interview_id).order_by(InterviewIssue.id.desc()).first()
-    if issue:
-        term_reason = f"{issue.issue_type}: {issue.description}"
-    elif interview.status == "terminated":
-        term_reason = "System manual termination"
+    if not term_reason:
+        issue = db.query(InterviewIssue).filter(InterviewIssue.interview_id == interview_id).order_by(InterviewIssue.id.desc()).first()
+        if issue:
+            term_reason = f"{issue.issue_type}: {issue.description}"
+        elif interview.status == "terminated":
+            term_reason = "System manual termination"
 
     # 4. Generate AI Report
     existing_report = db.query(InterviewReport).filter(InterviewReport.interview_id == interview_id).first()
@@ -2154,6 +2218,16 @@ async def _finalize_interview_and_report_internal(db: Session, interview_id: int
             db.commit()
         except Exception as e:
             logger.error(f"Error creating notification: {e}")
+
+        # 5. Send Automated Candidate Email
+        try:
+            if interview.application:
+                if interview.status == "terminated":
+                    await send_interview_terminated_email(interview.application, term_reason or "policy violations")
+                else:
+                    await send_interview_completed_email(interview.application)
+        except Exception as e:
+            logger.error(f"Failed to send automated candidate interview email: {e}")
 
         return report
     except Exception as e:

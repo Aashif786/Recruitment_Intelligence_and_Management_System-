@@ -56,8 +56,8 @@ export default function PipelineIndexPage() {
         if (searchTerm) {
             const lowerTerm = searchTerm.toLowerCase()
             filtered = filtered.filter(job => 
-                job.title.toLowerCase().includes(lowerTerm) || 
-                job.job_id.toLowerCase().includes(lowerTerm)
+                String(job.title || '').toLowerCase().includes(lowerTerm) || 
+                String(job.job_id || '').toLowerCase().includes(lowerTerm)
             )
         }
         

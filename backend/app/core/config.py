@@ -96,7 +96,7 @@ class Settings(BaseSettings):
     company_name: str = "Company"
 
     # Server
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 10000  # Default to 10000 for Render
     debug: bool = False
     env: str = "development"

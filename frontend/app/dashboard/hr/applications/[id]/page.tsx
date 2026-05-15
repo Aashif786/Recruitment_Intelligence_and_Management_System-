@@ -345,10 +345,10 @@ export default function HRApplicationDetailPage() {
                 </CardHeader>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
                 {/* ─── Main Content (Left) ─── */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="xl:col-span-2 space-y-6">
+                    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
                         {/* ─── AI Resume Analysis ─── */}
                         <Card className="border shadow-sm h-full flex flex-col">
                             <CardHeader>

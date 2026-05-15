@@ -395,7 +395,7 @@ class QuestionGenerator:
             {"question": "If you have a 3-liter jug and a 5-liter jug, how do you measure exactly 4 liters?", "options": ["Fill 5L, pour into 3L, empty 3L, pour remaining 2L into 3L, fill 5L, pour into 3L until full.", "Fill 3L, pour into 5L, fill 3L, pour into 5L until full.", "Fill 5L, pour into 3L.", "None of the above"], "answer": 0},
         ]
 
-    async def generate_behavioral_questions_batch(self, count: int, behavioral_role: str = "general") -> List[str]:
+    async def generate_behavioral_questions_batch(self, count: int, behavioral_role: str = "general", job_title: str = "", job_description: str = "") -> List[str]:
         """Generate a batch of behavioral questions based on role level"""
         if not self.client:
             return ["Tell me about a time you worked in a team."] * count
@@ -410,9 +410,13 @@ class QuestionGenerator:
         else:
             role_focus = "Focus on: Teamwork, Adaptability, Ownership, Conflict Resolution, and Communication."
 
+        job_context = f"\nJob Title: {job_title}\nJob Description: {job_description}\n" if job_title or job_description else ""
+
         prompt = f"""
         You are an HR manager. Generate exactly {count} behavioral interview questions for a {behavioral_role} candidate.
         {role_focus}
+        {job_context}
+        Tailor the scenarios to match the realities of the specified job role if provided.
 
         Return valid JSON array of strings.
         """

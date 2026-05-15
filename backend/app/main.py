@@ -56,7 +56,7 @@ from app.domain.models import (
     HiringDecision, Notification,
     ApplicationStage, AuditLog, InterviewReport
 )
-from app.services.interview_engine.websocket_gateway import router as websocket_router
+
 
 from app.core.logging_config import setup_logging
 from app.core.observability import log_json
@@ -249,7 +249,7 @@ app.include_router(ops_email.router)
 app.include_router(hr_settings.router)
 app.include_router(onboarding.router)
 app.include_router(repository.router)
-app.include_router(websocket_router)
+
 
 from app.linkedin_auth import router as linkedin_router
 app.include_router(linkedin_router, prefix="/auth")

@@ -1,8 +1,8 @@
-﻿'use client'
+'use client'
 
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { APIClient } from '@/app/dashboard/lib/api-client'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { API_BASE_URL } from '@/lib/config'
@@ -33,6 +33,7 @@ interface Question {
     evaluated_at?: string | null
     answer_score?: number | null
     evaluation_pending?: boolean
+    answer_text?: string | null
 }
 
 interface InterviewData {
@@ -48,6 +49,9 @@ export default function InterviewPage() {
     const params = useParams()
     const router = useRouter()
     const interviewId = params.id as string
+
+    const searchParams = useSearchParams()
+    const token = searchParams.get('token')
 
     const { data: settings } = useSWR('/api/settings', (url) => APIClient.get(url)) as { data: any }
     const companyLogo = settings?.company_logo_url || "/calrims/logo-dark.png"
@@ -114,6 +118,14 @@ export default function InterviewPage() {
     useEffect(() => { warningsRef.current = warnings }, [warnings])
     useEffect(() => { interviewStatusRef.current = interviewStatus }, [interviewStatus])
 
+    // Token Persistence
+    useEffect(() => {
+        if (token) {
+            localStorage.setItem('interview_token', token)
+            console.log("Interview token persisted from URL.")
+        }
+    }, [token])
+
     // VISIBILITY & ABANDONMENT TRACKING
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -176,38 +188,34 @@ export default function InterviewPage() {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true })
             }
 
-            // Filter and CLONE to only include audio tracks for the transcription recorder
-            // Cloning ensures the recorder has an independent track that won't be interfered with
-            const audioStream = new MediaStream(stream.getAudioTracks().map(t => t.clone()))
-
-            // Ensure all audio tracks are active and enabled
-            audioStream.getAudioTracks().forEach(track => {
-                track.enabled = true
-                if (track.readyState !== 'live') {
-                    console.warn("Audio track not live, attempting to restart...")
-                }
-            })
+            const audioTracks = stream.getAudioTracks().map(t => {
+                const clone = t.clone();
+                clone.enabled = true;
+                return clone;
+            });
+            const audioStream = new MediaStream(audioTracks);
 
             // Try to use a standard mime type, but fallback
             let options: any = { mimeType: 'audio/webm;codecs=opus' }
             if (!MediaRecorder.isTypeSupported(options.mimeType)) {
                 options = { mimeType: 'audio/webm' }
             }
-            
-            let mediaRecorder: MediaRecorder
-            if (MediaRecorder.isTypeSupported(options.mimeType)) {
-                mediaRecorder = new MediaRecorder(audioStream, options)
-            } else {
-                mediaRecorder = new MediaRecorder(audioStream)
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'audio/mp4' } 
             }
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: '' } 
+            }
+            
+            console.log(`Using MediaRecorder options:`, options)
 
+            const mediaRecorder = new MediaRecorder(audioStream, options)
             mediaRecorderRef.current = mediaRecorder
             audioChunksRef.current = []
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data && event.data.size > 0) {
                     audioChunksRef.current.push(event.data)
-                    console.log(`Audio chunk received: ${event.data.size} bytes`)
                 }
             }
 
@@ -216,22 +224,16 @@ export default function InterviewPage() {
                 const mimeType = mediaRecorder.mimeType || 'audio/webm'
                 const audioBlob = new Blob(chunks, { type: mimeType })
                 
-                console.log(`Recording stopped. Total size: ${audioBlob.size} bytes. Mime: ${mimeType}`)
-                
-                if (audioBlob.size > 200) { // Header-only webm is usually ~100-150 bytes
+                if (audioBlob.size > 100) { 
                     await handleTranscribe(audioBlob)
                 } else {
-                    console.warn("Audio blob too small or empty, skipping transcription")
                     toast.error("Audio recording was too short or silent. Please try again.")
                 }
 
-                // CRITICAL: ONLY stop tracks if they were created specifically for this recording
-                if (!isSharedStream) {
-                    audioStream.getTracks().forEach(track => track.stop())
-                }
+                // Properly dispose of audio tracks
+                audioStream.getTracks().forEach(track => track.stop());
             }
 
-            // Provide timeslice (500ms) to ensure continuous data events
             mediaRecorder.start(500)
             setIsListening(true)
         } catch (err) {
@@ -343,13 +345,18 @@ export default function InterviewPage() {
     }
 
     const startFaceDetection = async () => {
+        if (detectorRef.current) return; // Already initialized
+
         try {
             await tf.ready();
             const model = await blazeface.load();
             detectorRef.current = model;
 
-            faceCheckIntervalRef.current = setInterval(async () => {
-                if (videoRef.current && detectorRef.current && interviewStatusRef.current === 'active' && videoRef.current.readyState === 4) {
+            const runDetection = async () => {
+                const status = interviewStatusRef.current;
+                const isActive = ['active', 'preparing', 'aptitude', 'in_progress'].includes(status);
+                
+                if (videoRef.current && detectorRef.current && isActive && videoRef.current.readyState === 4) {
                     try {
                         const returnTensors = false;
                         const predictions = await detectorRef.current.estimateFaces(videoRef.current, returnTensors);
@@ -371,27 +378,30 @@ export default function InterviewPage() {
                                 const rightEye = landmarks[1];
                                 const nose = landmarks[2];
 
-                                // Simple heuristic: Nose should be roughly between the eyes horizontally
-                                // and the face should be "forward-facing"
                                 const eyesCenterX = (leftEye[0] + rightEye[0]) / 2;
                                 const eyeDist = Math.abs(leftEye[0] - rightEye[0]);
                                 const noseOffset = Math.abs(nose[0] - eyesCenterX);
 
-                                // If nose is too far from center relative to eye distance, they are looking away
                                 const isFocusing = noseOffset < (eyeDist * 0.45);
                                 setIsFocusingOnMonitor(isFocusing);
                             } else {
-                                // If landmarks missing but face detected, could be low quality/partially hidden
                                 setIsFocusingOnMonitor(false);
                             }
                         } else {
-                            setIsFocusingOnMonitor(true); // Don't show focus warning if face not detected at all (handled by face warning)
+                            setIsFocusingOnMonitor(true);
                         }
                     } catch (e) {
                         console.error("Detection error", e);
                     }
                 }
-            }, 3000); // Check every 3 seconds
+
+                // Recursive call for continuous monitoring
+                if (interviewStatusRef.current !== 'completed') {
+                    faceCheckIntervalRef.current = setTimeout(runDetection, 3000) as any;
+                }
+            };
+
+            runDetection();
         } catch (err) {
             console.error("Face detection init failed", err);
         }
@@ -490,7 +500,7 @@ export default function InterviewPage() {
         warningsRef.current = newWarnings
         setWarnings(newWarnings)
 
-        if (newWarnings >= 3) {
+        if (newWarnings >= 4) {
             if (!finishingInterviewRef.current) {
                 finishingInterviewRef.current = true
                 interviewStatusRef.current = 'finishing'
@@ -512,7 +522,7 @@ export default function InterviewPage() {
                 }
             }
         } else {
-            toast.error(`Proctoring Warning (${newWarnings}/2): ${type}. Switching tabs or losing focus is strictly prohibited.`, {
+            toast.error(`Proctoring Warning (${newWarnings}/3): ${type}. Switching tabs or losing focus is strictly prohibited.`, {
                 duration: 6000,
                 position: 'top-center',
             })
@@ -554,18 +564,18 @@ export default function InterviewPage() {
             // Leniency adjustment:
             // 1. Filter out micro-flashes (sometimes triggered by system dialogues)
             // 2. Filter out focus losses where the document remains visible (e.g. clicking taskbar or second monitor)
-            //    unless the duration is substantial (> 2 seconds).
-            if (hiddenDurationMs < 1500) return
+            //    unless the duration is substantial (> 1 second).
+            if (hiddenDurationMs < 800) return
 
             // If the document was NOT hidden (Visibility API) but focus was lost (Blur API),
             // and the duration was short, we are more lenient.
-            if (!document.hidden && hiddenDurationMs < 5000) return
+            if (!document.hidden && hiddenDurationMs < 2000) return
 
             const newWarnings = warningsRef.current + 1
             warningsRef.current = newWarnings
             setWarnings(newWarnings)
 
-            if (newWarnings >= 3) {
+            if (newWarnings >= 4) {
                 if (!finishingInterviewRef.current) {
                     finishingInterviewRef.current = true
                     interviewStatusRef.current = 'finishing'
@@ -590,7 +600,7 @@ export default function InterviewPage() {
                 }
             } else {
                 const violationType = document.hidden ? "Tab switch" : "Focus loss"
-                toast.error(`${violationType} detected! Warning #${newWarnings}/3.`, { duration: 5000 })
+                toast.error(`${violationType} detected! Warning #${newWarnings}/4.`, { duration: 5000 })
             }
         }
 
@@ -673,8 +683,8 @@ export default function InterviewPage() {
         if (!interviewData?.started_at || interviewStatus !== 'active') return
 
         // The backend uses naive datetimes. On Render/Supabase, these are implicitly UTC.
-        // We force UTC mapping by explicitly appending 'Z'.
-        const cleanDateStr = interviewData.started_at.replace('Z', '').replace(' ', 'T') + 'Z'
+        // We force IST mapping by explicitly appending '+05:30'.
+        const cleanDateStr = interviewData.started_at.replace('Z', '').replace(' ', 'T') + '+05:30'
         const startTime = new Date(cleanDateStr).getTime()
         const durationMs = (interviewData.duration_minutes || 60) * 60 * 1000
         const endTime = startTime + durationMs
@@ -826,6 +836,9 @@ export default function InterviewPage() {
                 if (lastSavedAnswer) {
                     setAnswer(lastSavedAnswer);
                     answerRef.current = lastSavedAnswer;
+                } else if (qs[startIdx].is_answered && qs[startIdx].answer_text) {
+                    setAnswer(qs[startIdx].answer_text);
+                    answerRef.current = qs[startIdx].answer_text;
                 }
 
                 const activeStatuses = ['active', 'in_progress', 'aptitude', 'preparing']
@@ -896,7 +909,7 @@ export default function InterviewPage() {
 
             // Update local state
             setQuestions(prev => prev.map(q =>
-                q.id === currentQuestion.id ? { ...q, is_answered: true, evaluation_pending: true } : q
+                q.id === currentQuestion.id ? { ...q, is_answered: true, evaluation_pending: true, answer_text: currentAnswer } : q
             ))
 
             // Clear draft answer for this question
@@ -908,10 +921,18 @@ export default function InterviewPage() {
             if (currentIndex < totalQuestions - 1) {
                 const nextIdx = currentIndex + 1
                 setCurrentIndex(nextIdx)
-                // Load draft for next question if exists
+                // Load draft or previous answer for next question if exists
                 const nextDraft = localStorage.getItem(`rims_draft_answer_${interviewId}_${nextIdx}`);
-                setAnswer(nextDraft || '')
-                answerRef.current = nextDraft || ''
+                if (nextDraft) {
+                    setAnswer(nextDraft)
+                    answerRef.current = nextDraft
+                } else if (questions[nextIdx]?.is_answered && questions[nextIdx]?.answer_text) {
+                    setAnswer(questions[nextIdx].answer_text!)
+                    answerRef.current = questions[nextIdx].answer_text!
+                } else {
+                    setAnswer('')
+                    answerRef.current = ''
+                }
             }
         } catch (err: any) {
             console.error("Submit failed", err)
@@ -1030,16 +1051,11 @@ export default function InterviewPage() {
                         <ShieldCheck className="w-12 h-12 text-white" />
                     </div>
                     <h1 className="text-4xl font-black text-slate-900 mb-6 tracking-tight uppercase">Ready to Begin?</h1>
-                    <div className="grid grid-cols-2 gap-4 w-full mb-10">
-                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-left">
+                    <div className="flex justify-center w-full mb-10">
+                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-left min-w-[200px]">
                             <Clock className="w-6 h-6 text-blue-600 mb-3" />
                             <h3 className="font-black text-xs uppercase text-slate-400 mb-1">Duration</h3>
                             <p className="font-bold text-slate-900">{interviewData?.duration_minutes || 60} Minutes</p>
-                        </div>
-                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-left">
-                            <Target className="w-6 h-6 text-blue-600 mb-3" />
-                            <h3 className="font-black text-xs uppercase text-slate-400 mb-1">Skill Area</h3>
-                            <p className="font-bold text-slate-900">{interviewData?.locked_skill || 'General'}</p>
                         </div>
                     </div>
                     <div className="bg-blue-50/50 p-8 rounded-[2rem] border border-blue-100 w-full mb-10 text-left space-y-4">
@@ -1129,31 +1145,7 @@ export default function InterviewPage() {
                 <div className="p-6 border-b border-slate-100">
                     <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Interview Sections</h2>
 
-                    {/* Integrity Section */}
-                    <div className="mb-8 p-4 bg-slate-900 rounded-2xl border border-white/5">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-white font-black text-xs uppercase tracking-widest">Integrity Status</h3>
-                            <div className="flex gap-1">
-                                <div className={`w-2 h-2 rounded-full animate-pulse ${warnings >= 2 ? 'bg-red-500' : warnings === 1 ? 'bg-amber-500' : 'bg-green-500'}`}></div>
-                            </div>
-                        </div>
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-slate-400 text-[10px] font-bold uppercase">Tab Warnings</span>
-                                <span className={`text-xs font-black ${warnings >= 3 ? 'text-red-400' : warnings >= 1 ? 'text-amber-400' : 'text-slate-200'}`}>
-                                    {warnings}/3
-                                </span>
-                            </div>
-                            <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full transition-all duration-500 ${warnings >= 3 ? 'bg-red-500 w-full' : warnings === 2 ? 'bg-orange-500 w-2/3' : warnings === 1 ? 'bg-amber-500 w-1/3' : 'bg-green-500 w-0'}`}
-                                />
-                            </div>
-                            <p className="text-[9px] text-slate-500 font-medium leading-tight">
-                                3 violations will result in immediate session termination.
-                            </p>
-                        </div>
-                    </div>
+
 
                     {/* Aptitude Section */}
                     <div className="mb-8">
@@ -1214,8 +1206,8 @@ export default function InterviewPage() {
                                             setAnswer(savedDraft || '')
                                             answerRef.current = savedDraft || ''
                                         } else {
-                                            setAnswer('')
-                                            answerRef.current = ''
+                                            setAnswer(q.answer_text || '')
+                                            answerRef.current = q.answer_text || ''
                                         }
                                     }}
                                     className={`w-9 h-9 rounded-full text-xs font-bold transition-all border-2 flex items-center justify-center ${questionNavButtonClass(
@@ -1251,8 +1243,8 @@ export default function InterviewPage() {
                                             setAnswer(savedDraft || '')
                                             answerRef.current = savedDraft || ''
                                         } else {
-                                            setAnswer('')
-                                            answerRef.current = ''
+                                            setAnswer(q.answer_text || '')
+                                            answerRef.current = q.answer_text || ''
                                         }
                                     }}
                                     className={`w-9 h-9 rounded-full text-xs font-bold transition-all border-2 flex items-center justify-center ${questionNavButtonClass(
@@ -1402,10 +1394,6 @@ export default function InterviewPage() {
                 <div className="h-20 flex items-center justify-between px-10 relative z-20">
                     <div className="flex items-center gap-4">
                         <img src={companyLogo} alt="Logo" className="h-8 w-auto object-contain max-w-[140px]" />
-                        <div className="bg-slate-900 text-white px-5 py-2 rounded-full flex items-center gap-2 shadow-lg">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Locked:</span>
-                            <span className="text-xs font-bold tracking-wider">{interviewData?.locked_skill?.toUpperCase() || 'GENERAL'}</span>
-                        </div>
                         {!isFullscreen && interviewStatus === 'active' && (
                             <Button
                                 size="sm"
@@ -1485,29 +1473,19 @@ export default function InterviewPage() {
                                             key={i}
                                             onClick={() => { setAnswer(i.toString()); answerRef.current = i.toString(); }}
                                             className={`p-8 rounded-3xl border-2 text-left transition-all duration-300 group relative
-                                                ${answer === i.toString()
+                                                ${answer === i.toString() || answer === opt
                                                     ? 'bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-500/30 -translate-y-1'
                                                     : 'bg-white border-slate-100 text-slate-700 hover:border-blue-200 hover:bg-slate-50'}`}
                                         >
                                             <div className="flex items-center gap-6">
                                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border-2 transition-colors
-                                                    ${answer === i.toString() ? 'bg-white/20 border-white text-white' : 'bg-slate-50 border-slate-100 text-slate-400 group-hover:border-blue-200 group-hover:text-blue-600'}`}>
+                                                    ${answer === i.toString() || answer === opt ? 'bg-white/20 border-white text-white' : 'bg-slate-50 border-slate-100 text-slate-400 group-hover:border-blue-200 group-hover:text-blue-600'}`}>
                                                     {String.fromCharCode(65 + i)}
                                                 </div>
                                                 <span className="text-lg font-bold">{opt}</span>
                                             </div>
                                         </button>
                                     ))}
-                                </div>
-                            ) : currentQuestion?.is_answered ? (
-                                <div className="flex flex-col items-center justify-center py-10 gap-4">
-                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
-                                        <CheckCircle2 className="w-8 h-8 text-green-600" />
-                                    </div>
-                                    <p className="text-slate-700 font-bold text-lg">Answer Submitted</p>
-                                    <p className="text-slate-500 text-sm text-center max-w-sm">
-                                        Your answer for this question has been recorded. Navigate to another question or end the interview.
-                                    </p>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
@@ -1608,7 +1586,7 @@ export default function InterviewPage() {
                                         {questions.some(q => !q.is_answered) ? 'End Early' : 'End Interview'}
                                     </Button>
                                     <Button
-                                        disabled={(!answer.trim() && !isListening && !isTranscribing) || isSubmitting || currentQuestion?.is_answered}
+                                        disabled={(!answer.trim() && !isListening && !isTranscribing) || isSubmitting}
                                         onClick={handleSubmit}
                                         className="h-16 px-10 rounded-[1.25rem] bg-blue-600 hover:bg-blue-700 text-white font-black text-lg shadow-2xl shadow-blue-500/30 transition-all hover:-translate-y-1 active:scale-[0.98] disabled:opacity-30"
                                     >
@@ -1620,7 +1598,7 @@ export default function InterviewPage() {
                                             <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Converting...</>
                                         ) : (
                                             <>
-                                                Submit Answer
+                                                {currentQuestion?.is_answered ? 'Update Answer' : 'Submit Answer'}
                                                 <ChevronRight className="w-6 h-6 ml-1" />
                                             </>
                                         )}

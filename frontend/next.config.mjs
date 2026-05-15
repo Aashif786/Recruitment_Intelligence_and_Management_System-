@@ -47,6 +47,36 @@ const nextConfig = {
         permanent: false,
         basePath: false,
       },
+      {
+        source: '/support/:path*',
+        destination: '/calrims/support/:path*',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/terms/:path*',
+        destination: '/calrims/terms/:path*',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/privacy/:path*',
+        destination: '/calrims/privacy/:path*',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/offer/:path*',
+        destination: '/calrims/offer/:path*',
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: '/company/:path*',
+        destination: '/calrims/company/:path*',
+        permanent: false,
+        basePath: false,
+      },
     ]
   },
   async rewrites() {

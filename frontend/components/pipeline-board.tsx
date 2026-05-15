@@ -48,7 +48,6 @@ const STATUS_COLUMNS = [
     { id: "onboarded", label: "Onboarded" },
 ]
 
-// ─── Allowed FSM Actions Per State (for pipeline card actions) ──────────
 const STATE_ACTIONS: Record<string, { action: string; label: string; variant: 'primary' | 'destructive' | 'secondary' | 'success' }[]> = {
     applied: [
         { action: "mark_screened", label: "Screen", variant: "primary" },
@@ -58,6 +57,17 @@ const STATE_ACTIONS: Record<string, { action: string; label: string; variant: 'p
     ],
     interview_completed: [
         { action: "hire", label: "Hire", variant: "success" },
+        { action: "call_for_interview", label: "Call", variant: "primary" },
+        { action: "review_later", label: "Review", variant: "secondary" },
+    ],
+    review_later: [
+        { action: "call_for_interview", label: "Call", variant: "primary" },
+    ],
+    physical_interview: [
+        { action: "hire", label: "Hire", variant: "success" },
+    ],
+    accepted: [
+        { action: "onboard", label: "Onboard", variant: "success" },
     ],
 }
 
@@ -158,9 +168,14 @@ export function PipelineBoard({ jobId }: { jobId?: string }) {
                     );
                     return Array.isArray(current) ? mapped : { ...current, items: mapped };
                 },
+                successMessage: action === 'hire' ? 'Candidate hired! Redirecting to Onboarding...' : `Action ${action} completed`,
                 invalidateKeys: ['/api/analytics/dashboard']
             }
         )
+
+        if (action === 'hire') {
+            router.push('/dashboard/onboarding')
+        }
     }
 
     const handleReject = async (applicationId: number, reason: string, notes: string) => {

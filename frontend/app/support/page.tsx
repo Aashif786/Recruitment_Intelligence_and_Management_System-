@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { APIClient } from '@/app/dashboard/lib/api-client'
 import { toast } from "sonner"
-import { AlertTriangle, Send, CheckCircle2, ChevronLeft } from 'lucide-react'
+import { AlertTriangle, Send, CheckCircle2, ChevronLeft, ShieldCheck, Loader2 } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function SupportPage() {
@@ -81,24 +81,35 @@ export default function SupportPage() {
 
     if (isSubmitted) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-                <Card className="max-w-md w-full border-none shadow-2xl bg-card animate-in fade-in zoom-in duration-500">
-                    <CardHeader className="text-center pb-2">
-                        <div className="mx-auto w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600 dark:text-green-400 mb-4 ring-8 ring-green-50 dark:ring-green-900/10">
-                            <CheckCircle2 className="h-10 w-10" />
+            <div className="flex-1 min-h-screen flex items-center justify-center bg-muted/30 p-6 relative overflow-hidden">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl h-96 bg-blue-500/10 blur-[120px] pointer-events-none" />
+                
+                <Card className="max-w-md w-full border border-border/50 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] bg-card/80 backdrop-blur-xl rounded-[3rem] overflow-hidden animate-in zoom-in-95 fade-in duration-700">
+                    <div className="h-2 bg-green-500"></div>
+                    <CardHeader className="text-center p-12 pb-6">
+                        <div className="mx-auto w-24 h-24 bg-green-50 rounded-3xl flex items-center justify-center text-green-600 mb-8 border border-green-100 shadow-xl shadow-green-500/10 rotate-3 transition-transform hover:rotate-0">
+                            <CheckCircle2 className="h-12 w-12" />
                         </div>
-                        <CardTitle className="text-3xl font-black">Report Received</CardTitle>
-                        <CardDescription className="text-lg pt-2 leading-relaxed">
-                            Thank you for reporting this. Your issue has been recorded and sent to our HR team for review.
+                        <CardTitle className="text-3xl font-black tracking-tight text-slate-900 uppercase">Grievance Recorded</CardTitle>
+                        <CardDescription className="text-lg font-bold text-slate-500 mt-4 leading-relaxed">
+                            Thank you for your patience. Your report has been securely transmitted to our HR Integrity Team.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="text-center text-muted-foreground pb-8">
-                        <p>We will review your request and contact you at <strong>{email}</strong> if more details are required.</p>
+                    <CardContent className="text-center px-12 pb-8">
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold text-slate-600">
+                            A confirmation and resolution will be sent to <span className="text-blue-600">{email}</span> shortly.
+                        </div>
                     </CardContent>
-                    <CardFooter className="flex justify-center border-t pt-6 bg-muted/30">
-                        <Button variant="outline" onClick={() => router.push('/')} className="rounded-xl font-bold px-8">
-                            Return to Home
+                    <CardFooter className="flex flex-col gap-3 p-12 pt-0">
+                        <Button 
+                            onClick={() => router.push('/')} 
+                            className="w-full h-14 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-lg shadow-xl"
+                        >
+                            RETURN TO PORTAL
                         </Button>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">
+                            ID: {Math.random().toString(36).substring(7).toUpperCase()}
+                        </p>
                     </CardFooter>
                 </Card>
             </div>
@@ -106,123 +117,134 @@ export default function SupportPage() {
     }
 
     return (
-        <div className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4 py-12">
-            <div className="w-full max-w-2xl">
+        <div className="flex-1 min-h-full bg-muted/30 flex flex-col items-center justify-start p-4 py-12 md:py-20 relative overflow-y-auto">
+            {/* Background decorative elements */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-96 bg-gradient-to-b from-blue-500/5 to-transparent blur-3xl pointer-events-none" />
+
+            <div className="w-full max-w-2xl relative z-10">
                 <Button
                     variant="ghost"
                     onClick={() => router.back()}
-                    className="mb-6 hover:bg-background/80 text-muted-foreground group font-semibold"
+                    className="mb-8 hover:bg-background/80 text-muted-foreground group font-bold rounded-xl px-4"
                 >
-                    <ChevronLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back
+                    <ChevronLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> 
+                    Back to Interview
                 </Button>
 
-                <Card className="border-none shadow-2xl bg-card overflow-hidden rounded-3xl animate-in slide-in-from-bottom-8 duration-700 ease-out fill-mode-both">
-                    <div className="h-2 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+                <Card className="border border-border/50 shadow-2xl bg-card/80 backdrop-blur-sm overflow-hidden rounded-[2.5rem] animate-in slide-in-from-bottom-8 duration-700 ease-out">
+                    <div className="h-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 animate-gradient-x"></div>
+                    
                     <CardHeader className="space-y-4 p-8 md:p-12 pb-6">
-                        <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 mb-2 rotate-3 transform-gpu transition-transform hover:rotate-0">
-                            <AlertTriangle className="h-8 w-8" />
-                        </div>
-                        <div>
-                            <CardTitle className="text-4xl font-black tracking-tight">Candidate Support</CardTitle>
-                            <CardDescription className="text-lg mt-2 font-medium leading-relaxed">
-                                Face an issue with your interview or have a technical grievance?
-                                Report it here and our HR team will look into it.
-                            </CardDescription>
+                        <div className="flex items-center gap-6">
+                            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20 rotate-3 transform-gpu transition-transform hover:rotate-0">
+                                <AlertTriangle className="h-8 w-8" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 dark:text-white uppercase">Support Portal</CardTitle>
+                                <CardDescription className="text-base md:text-lg font-bold text-slate-500 mt-1">
+                                    Technical Grievance & Reschedule Requests
+                                </CardDescription>
+                            </div>
                         </div>
                     </CardHeader>
 
-                    <CardContent className="p-8 md:p-12 pt-0">
+                    <CardContent className="p-8 md:p-12 pt-4">
                         <form onSubmit={handleSubmit} className="space-y-8">
                             {formError && (
-                                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                                <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 flex items-center gap-3 animate-shake" role="alert">
+                                    <AlertTriangle className="h-5 w-5 shrink-0" />
                                     {formError}
                                 </div>
                             )}
-                            <div className="space-y-3">
-                                <Label htmlFor="email" className="text-base font-bold flex items-center gap-2">
-                                    Your Registered Email
-                                </Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    placeholder="email@example.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    aria-invalid={Boolean(email.trim()) && !emailValid}
-                                    className="h-14 px-5 rounded-2xl border-2 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-lg transition-all"
-                                    required
-                                />
-                                <p className="text-sm text-muted-foreground">Please use the same email address you used for your job application.</p>
-                            </div>
 
-                            <div className="space-y-3">
-                                <Label htmlFor="accessKey" className="text-base font-bold flex items-center gap-2">
-                                    Interview Access Key
-                                </Label>
-                                <Input
-                                    id="accessKey"
-                                    type="text"
-                                    placeholder="Paste your access key here"
-                                    value={accessKey}
-                                    onChange={(e) => setAccessKey(e.target.value.trim())}
-                                    className="h-14 px-5 rounded-2xl border-2 tracking-widest font-mono focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-lg transition-all"
-                                    required
-                                />
-                                <p className="text-sm text-muted-foreground">Find this in the invitation email sent by the recruiter.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                    <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-slate-400">
+                                        Registered Email
+                                    </Label>
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        placeholder="you@example.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="h-14 px-5 rounded-2xl border-2 border-slate-100 focus:border-blue-600 focus:ring-0 text-lg transition-all font-bold"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <Label htmlFor="accessKey" className="text-xs font-black uppercase tracking-widest text-slate-400">
+                                        Access Key
+                                    </Label>
+                                    <Input
+                                        id="accessKey"
+                                        type="text"
+                                        placeholder="H4IE-..."
+                                        value={accessKey}
+                                        onChange={(e) => setAccessKey(e.target.value.trim())}
+                                        className="h-14 px-5 rounded-2xl border-2 border-slate-100 focus:border-blue-600 focus:ring-0 tracking-widest font-mono text-lg transition-all"
+                                        required
+                                    />
+                                </div>
                             </div>
 
                             <div className="space-y-4">
-                                <Label className="text-base font-bold">Nature of Grievance</Label>
+                                <Label className="text-xs font-black uppercase tracking-widest text-slate-400">Nature of Grievance</Label>
                                 <RadioGroup value={issueType} onValueChange={setIssueType} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {[
-                                        { id: 'technical', label: 'Technical Glitch', desc: 'Login issues, Audio/Video, etc.' },
-                                        { id: 'interruption', label: 'Unexpected Termination', desc: 'Tab switch or browser crash' },
-                                        { id: 'misconduct', label: 'Misconduct Appeal', desc: 'Appeal against a warning' },
-                                        { id: 'other', label: 'Other Grievance', desc: 'Process or scheduling issues' }
+                                        { id: 'technical', label: 'Technical Glitch', desc: 'Audio, Video, or UI issues' },
+                                        { id: 'interruption', label: 'Session Interrupted', desc: 'Browser crash or exit' },
+                                        { id: 'misconduct', label: 'Misconduct Appeal', desc: 'Appeal a proctoring warning' },
+                                        { id: 'other', label: 'Other Issue', desc: 'Process or scheduling' }
                                     ].map((opt) => (
-                                        <label key={opt.id} htmlFor={opt.id} className={`relative flex flex-col p-4 rounded-2xl border-2 transition-all cursor-pointer group ${issueType === opt.id
-                                            ? 'border-blue-600 bg-blue-50/10 ring-4 ring-blue-500/5'
-                                            : 'border-border hover:border-blue-300 hover:bg-muted/30'
+                                        <label key={opt.id} htmlFor={opt.id} className={`relative flex flex-col p-5 rounded-2xl border-2 transition-all cursor-pointer group ${issueType === opt.id
+                                            ? 'border-blue-600 bg-blue-50/30'
+                                            : 'border-slate-100 hover:border-blue-200 hover:bg-slate-50/50'
                                             }`}>
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className="font-bold text-lg">{opt.label}</span>
+                                                <span className="font-black text-slate-900 dark:text-white">{opt.label}</span>
                                                 <RadioGroupItem value={opt.id} id={opt.id} className="sr-only" />
-                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${issueType === opt.id ? 'border-blue-600 bg-blue-600' : 'border-muted-foreground/30'
-                                                    }`}>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${issueType === opt.id ? 'border-blue-600 bg-blue-600' : 'border-slate-300'}`}>
                                                     {issueType === opt.id && <div className="w-2 h-2 rounded-full bg-white" />}
                                                 </div>
                                             </div>
-                                            <span className="text-sm text-muted-foreground font-medium">{opt.desc}</span>
+                                            <span className="text-xs text-slate-500 font-bold">{opt.desc}</span>
                                         </label>
                                     ))}
                                 </RadioGroup>
                             </div>
 
                             <div className="space-y-3">
-                                <Label htmlFor="description" className="text-base font-bold">Detailed Description</Label>
+                                <Label htmlFor="description" className="text-xs font-black uppercase tracking-widest text-slate-400">Detailed Description</Label>
                                 <Textarea
                                     id="description"
-                                    placeholder="Please provide as much detail as possible..."
-                                    className="min-h-[160px] p-5 rounded-2xl border-2 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-lg transition-all resize-none shadow-sm"
+                                    placeholder="Please describe exactly what happened..."
+                                    className="min-h-[160px] p-6 rounded-2xl border-2 border-slate-100 focus:border-blue-600 focus:ring-0 text-lg transition-all resize-none font-medium"
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    aria-invalid={Boolean(description.trim()) && !descriptionValid}
                                     required
                                 />
-                                <p className="text-xs text-muted-foreground italic">Your IP address and session data will be correlated for verification.</p>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-black uppercase tracking-tighter italic">
+                                    <ShieldCheck className="h-3 w-3" />
+                                    Your IP and session data will be correlated for verification
+                                </div>
                             </div>
 
                             <Button
                                 type="submit"
-                                className="w-full h-16 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xl shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all disabled:opacity-50"
+                                className="w-full h-18 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xl shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50"
                                 disabled={!canSubmit}
                             >
                                 {isSubmitting ? (
-                                    <>Processing...</>
+                                    <div className="flex items-center gap-3">
+                                        <Loader2 className="h-6 w-6 animate-spin" />
+                                        RECORDING REPORT...
+                                    </div>
                                 ) : (
-                                    <>
-                                        Submit Grievance <Send className="ml-3 h-6 w-6" />
-                                    </>
+                                    <div className="flex items-center gap-3">
+                                        SUBMIT GRIEVANCE <Send className="h-6 w-6" />
+                                    </div>
                                 )}
                             </Button>
                         </form>
@@ -230,12 +252,8 @@ export default function SupportPage() {
                 </Card>
 
                 <div className="mt-12 text-center pb-8 animate-in fade-in duration-1000 delay-500">
-                    <p className="text-muted-foreground font-medium">
-                        Secure AI Interview System • Support Portal
-                    </p>
-                    <p className="text-xs text-muted-foreground/60 mt-2">
-                        For immediate technical assistance, please contact caldiminternship@gmail.com
-
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                        CAL-RIMS AI Recruitment Platform • Secure Support
                     </p>
                 </div>
             </div>

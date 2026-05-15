@@ -57,6 +57,21 @@ function InterviewAccessForm() {
   useEffect(() => {
     if (e) setEmail(e)
     if (k) setAccessKey(k)
+
+    // Seamless Entry Protocol: Auto-submit if both params exist and haven't tried this specific pair yet.
+    const attemptKey = `${e}:${k}`
+    if (e && k && hasAttemptedRef.current !== attemptKey && !loading && !isSubmittingRef.current) {
+        hasAttemptedRef.current = attemptKey
+        
+        // 500ms delay to allow state to settle and UI to show intent
+        autoAccessStartedRef.current = setTimeout(() => {
+            handleSubmit(e, k)
+        }, 500)
+    }
+
+    return () => {
+        if (autoAccessStartedRef.current) clearTimeout(autoAccessStartedRef.current)
+    }
   }, [e, k])
 
   return (

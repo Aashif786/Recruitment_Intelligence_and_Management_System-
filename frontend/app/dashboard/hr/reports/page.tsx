@@ -1675,7 +1675,7 @@ export default function ReportsPage() {
                                 key={i} 
                                 variant="secondary" 
                                 className={`text-[11px] font-bold px-3 py-1 rounded-lg border-none shadow-sm
-                                  ${skillFilter !== 'All' && skill.toLowerCase().includes(skillFilter.replace('_', ' ').toLowerCase())
+                                  ${skillFilter !== 'All' && (skill || '').toLowerCase().includes(skillFilter.replace('_', ' ').toLowerCase())
                                     ? 'bg-primary text-primary-foreground' 
                                     : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                                   }`}

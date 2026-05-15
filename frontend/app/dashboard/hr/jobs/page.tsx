@@ -106,7 +106,7 @@ export default function HRJobsPage() {
     const filteredJobs = useMemo(() => {
         return jobs.filter(job => {
             const matchesSearch =
-                job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (job.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (job.job_id && job.job_id.toLowerCase().includes(searchTerm.toLowerCase()))
             const matchesStatus = statusFilter === 'all' || job.status === statusFilter
             return matchesSearch && matchesStatus
