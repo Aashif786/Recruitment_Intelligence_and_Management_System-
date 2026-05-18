@@ -204,6 +204,8 @@ async def run_batch_resume_processing(db: Session):
             target_job = None
             subject_str = resume.subject or ""
             body_str = resume.email_body or ""
+            subject_lower = subject_str.lower()
+            body_lower = body_str.lower()
             combined_text_raw = f"{subject_str} {body_str}"
             combined_text_lower = combined_text_raw.lower()
             
