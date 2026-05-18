@@ -593,7 +593,13 @@ export default function InterviewPage() {
                 }
             }
         } else {
-            toast.error(`Proctoring Warning (${newWarnings}/3): ${type}. Switching tabs or losing focus is strictly prohibited.`, {
+            const toastMsg = type === 'Fullscreen Exited'
+                ? 'Fullscreen exited! Please remain in fullscreen mode.'
+                : type === 'Tab switch'
+                ? 'Tab switch detected! Please remain on the active test tab.'
+                : 'Window focus lost! Please keep the test window active.'
+
+            toast.error(`Proctoring Warning (${newWarnings}/3): ${toastMsg}`, {
                 duration: 6000,
                 position: 'top-center',
             })
@@ -674,7 +680,11 @@ export default function InterviewPage() {
                 }
             } else {
                 const violationType = document.hidden ? "Tab switch" : "Focus loss"
-                toast.error(`${violationType} detected! Warning #${newWarnings}/4.`, { duration: 5000 })
+                const toastMsg = violationType === 'Tab switch'
+                    ? 'Tab switch detected! Please remain on the active test tab.'
+                    : 'Window focus lost! Please keep the test window active.'
+
+                toast.error(`${toastMsg} Warning #${newWarnings}/4.`, { duration: 5000 })
                 setViolationModalType(violationType)
                 setViolationModalWarnings(newWarnings)
                 setShowViolationModal(true)
@@ -1787,11 +1797,19 @@ export default function InterviewPage() {
                         </div>
                         <div className="space-y-2">
                             <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Proctoring Warning</h2>
-                            <p className="text-sm font-bold text-red-500 uppercase tracking-wider">{violationModalType || 'Window Focus Loss'} Detected</p>
+                            <p className="text-sm font-bold text-red-500 uppercase tracking-wider">
+                                {violationModalType === 'Fullscreen Exited'
+                                    ? 'Fullscreen Exited'
+                                    : violationModalType === 'Tab switch'
+                                    ? 'Tab Switch'
+                                    : 'Window Focus Loss'} Detected
+                            </p>
                             <p className="text-xs text-slate-500 font-medium leading-relaxed">
                                 {violationModalType === 'Fullscreen Exited'
-                                    ? 'Exiting fullscreen mode is strictly prohibited. You must remain in fullscreen mode to ensure interview integrity.'
-                                    : 'You switched tabs or lost window focus. Leaving the test screen is strictly monitored and recorded. Doing this multiple times will result in automatic termination.'}
+                                    ? 'You exited fullscreen mode. You must remain in fullscreen mode at all times to ensure complete focus and interview integrity.'
+                                    : violationModalType === 'Tab switch'
+                                    ? 'You switched tabs or minimized the browser. Navigating away from the active test screen tab is strictly monitored and flagged.'
+                                    : 'You clicked outside the active browser window, switched screens, or opened another application. The test window must remain in focus and active at all times.'}
                             </p>
                         </div>
                         
