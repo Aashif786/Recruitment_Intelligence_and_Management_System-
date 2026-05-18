@@ -862,9 +862,17 @@ async def process_application_background(application_id: int, job_id: int, abs_f
 
                 # Delete related resume_extraction first if it exists in session to avoid ForeignKeyViolation
                 if resume_extraction:
-                    db.delete(resume_extraction)
+                    try:
+                        if resume_extraction in db:
+                            db.delete(resume_extraction)
+                    except Exception:
+                        pass
                 
-                db.delete(application)
+                try:
+                    if application in db:
+                        db.delete(application)
+                except Exception:
+                    pass
                 db.commit()
                 db.close()
                 return

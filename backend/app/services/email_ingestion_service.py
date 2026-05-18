@@ -29,16 +29,16 @@ def fetch_resume_attachments(db: Session, imap_user: str, imap_pass: str):
         # Select the mailbox you want to check
         mail.select("inbox")
         
-        # Search for unread emails
-        status, messages = mail.search(None, '(UNSEEN)')
+        # Search for recent emails (both read and unread) to prevent missing opened/read test emails
+        status, messages = mail.search(None, 'ALL')
         if status != "OK":
-            return {"success": False, "error": "No unread emails found."}
+            return {"success": False, "error": "No emails found in inbox."}
 
         email_ids = messages[0].split()
         
-        # Limit to 50 most recent emails to prevent timeouts
-        if len(email_ids) > 50:
-            email_ids = email_ids[-50:]
+        # Scan the 30 most recent emails (our strict DB duplicate checking handles skipping instantly)
+        if len(email_ids) > 30:
+            email_ids = email_ids[-30:]
             
         saved_count = 0
         
