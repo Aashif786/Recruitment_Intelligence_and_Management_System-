@@ -64,6 +64,9 @@ export default function InterviewPage() {
     const [interviewStatus, setInterviewStatus] = useState('loading')
     const [interviewData, setInterviewData] = useState<InterviewData | null>(null)
     const [warnings, setWarnings] = useState(0)
+    const [showViolationModal, setShowViolationModal] = useState(false)
+    const [violationModalType, setViolationModalType] = useState('')
+    const [violationModalWarnings, setViolationModalWarnings] = useState(0)
     const [timeLeft, setTimeLeft] = useState<number | null>(null)
     const [visitedIds, setVisitedIds] = useState<Set<number>>(new Set())
     const [isListening, setIsListening] = useState(false)
@@ -594,6 +597,9 @@ export default function InterviewPage() {
                 duration: 6000,
                 position: 'top-center',
             })
+            setViolationModalType(type)
+            setViolationModalWarnings(newWarnings)
+            setShowViolationModal(true)
         }
     }, [interviewId])
 
@@ -669,6 +675,9 @@ export default function InterviewPage() {
             } else {
                 const violationType = document.hidden ? "Tab switch" : "Focus loss"
                 toast.error(`${violationType} detected! Warning #${newWarnings}/4.`, { duration: 5000 })
+                setViolationModalType(violationType)
+                setViolationModalWarnings(newWarnings)
+                setShowViolationModal(true)
             }
         }
 
@@ -1759,6 +1768,56 @@ export default function InterviewPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Premium Center-screen Warning Modal on Violation */}
+            {showViolationModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md animate-fade-in select-none">
+                    <div className="bg-white border-2 border-red-200 rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6 mx-4 text-center animate-scale-up">
+                        <div className="w-16 h-16 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-center mx-auto text-red-600 animate-pulse">
+                            <ShieldAlert className="w-8 h-8" />
+                        </div>
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Proctoring Warning</h2>
+                            <p className="text-sm font-bold text-red-500 uppercase tracking-wider">{violationModalType || 'Window Focus Loss'} Detected</p>
+                            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                You switched tabs or lost window focus. Leaving the test screen is strictly monitored and recorded. Doing this multiple times will result in automatic termination.
+                            </p>
+                        </div>
+                        
+                        {/* Visual Warning Steps */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col items-center gap-3">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Warning Progress</span>
+                            <div className="flex gap-2">
+                                {[1, 2, 3].map((s) => (
+                                    <div 
+                                        key={s} 
+                                        className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-black transition-all ${
+                                            violationModalWarnings >= s 
+                                                ? 'bg-red-500 border-red-500 text-white shadow-md shadow-red-200 animate-pulse' 
+                                                : 'bg-white border-slate-200 text-slate-400'
+                                        }`}
+                                    >
+                                        {s}
+                                    </div>
+                                ))}
+                                <div className="w-8 h-8 rounded-full border-2 border-dashed border-red-400 bg-red-50 flex items-center justify-center text-xs font-black text-red-500 animate-pulse">
+                                    4
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">
+                                {violationModalWarnings === 3 ? 'CRITICAL: Next strike terminates test!' : `${violationModalWarnings} of 3 warnings used`}
+                            </span>
+                        </div>
+
+                        <Button
+                            onClick={() => setShowViolationModal(false)}
+                            className="w-full h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-sm transition-all shadow-lg shadow-red-200"
+                        >
+                            I Understand & Return to Test
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
