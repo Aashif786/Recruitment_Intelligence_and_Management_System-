@@ -15,7 +15,6 @@ def ensure_global_settings_table(db: Session) -> None:
 
 @router.get("", response_model=GlobalSettingsResponse)
 def get_settings(
-    current_user: User = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):
     """Fetch global settings (public - used for branding on login/register pages)."""

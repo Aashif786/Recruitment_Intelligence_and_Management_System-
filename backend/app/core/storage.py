@@ -17,6 +17,11 @@ except ImportError:
 # Module-level singleton — avoids re-creating the HTTP client on every request
 _supabase_client: Optional[Any] = None
 
+def resolve_bucket_and_path(bucket: str, path: str):
+    if path and path.startswith("MAIL_ATTACHMENTS/"):
+        return "MAIL_ATTACHMENTS", path.replace("MAIL_ATTACHMENTS/", "", 1)
+    return bucket, path
+
 def get_supabase_client() -> Optional[Any]:
     global _supabase_client
     if _supabase_client is not None:
@@ -30,6 +35,8 @@ def get_supabase_client() -> Optional[Any]:
     return None
 
 def upload_file(bucket: str, path: str, content: bytes, content_type: str = "application/octet-stream") -> Optional[str]:
+    original_path = path
+    bucket, path = resolve_bucket_and_path(bucket, path)
     client = get_supabase_client()
     if client:
         try:
@@ -39,7 +46,7 @@ def upload_file(bucket: str, path: str, content: bytes, content_type: str = "app
                 {"content-type": content_type, "upsert": "true"}
             )
             logger.info(f"STORAGE: Uploaded to Supabase bucket: {bucket}")
-            return path
+            return original_path
         except Exception as e:
             logger.error(f"STORAGE: Supabase upload failed for {bucket}/{path}: {e}")
             return None
@@ -47,6 +54,7 @@ def upload_file(bucket: str, path: str, content: bytes, content_type: str = "app
     return None
 
 def download_file(bucket: str, path: str) -> Optional[bytes]:
+    bucket, path = resolve_bucket_and_path(bucket, path)
     client = get_supabase_client()
     if client:
         try:
@@ -58,6 +66,7 @@ def download_file(bucket: str, path: str) -> Optional[bytes]:
     return None
 
 def delete_file(bucket: str, path: str):
+    bucket, path = resolve_bucket_and_path(bucket, path)
     client = get_supabase_client()
     if client:
         try:
@@ -69,7 +78,7 @@ def delete_file(bucket: str, path: str):
 def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> Optional[str]:
     if not path:
         return None
-        
+    bucket, path = resolve_bucket_and_path(bucket, path)
     client = get_supabase_client()
     if client:
         try:
@@ -85,7 +94,7 @@ def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> Optional[s
 def get_public_url(bucket: str, path: str) -> Optional[str]:
     if not path:
         return None
-        
+    bucket, path = resolve_bucket_and_path(bucket, path)
     client = get_supabase_client()
     if client:
         try:

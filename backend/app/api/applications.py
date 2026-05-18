@@ -709,7 +709,8 @@ async def process_application_background(application_id: int, job_id: int, abs_f
             # Download from storage
             # Assuming 'resumes' bucket
             bucket_name = settings.supabase_bucket_resumes
-            response = supabase.storage.from_(bucket_name).download(abs_file_path)
+            from app.core.storage import download_file
+            response = download_file(bucket_name, abs_file_path)
             if not response:
                 raise Exception(f"Failed to download resume from {abs_file_path}")
             
@@ -1312,9 +1313,10 @@ async def retry_application_background(application_id: int, job_id: int, bucket_
         resume_text = ""
         try:
             from io import BytesIO
-            from app.core.storage import get_supabase_client
-            supabase = get_supabase_client()
-            response = supabase.storage.from_(settings.supabase_bucket_resumes).download(bucket_path)
+            from app.core.storage import download_file
+            response = download_file(settings.supabase_bucket_resumes, bucket_path)
+            if not response:
+                raise Exception("Failed to download resume content")
             file_stream = BytesIO(response)
             file_ext = bucket_path.lower().split('_')[-1].split('.')[-1] if '.' in bucket_path else 'pdf'
 
@@ -1911,3 +1913,20 @@ async def extract_basic_info(resume_file: UploadFile = File(...)):
         "name": info.get("name") if isinstance(info, dict) else "",
         "phone": info.get("phone") if isinstance(info, dict) else "",
     }
+
+from app.services.email_ingestion_service import fetch_resume_attachments
+from pydantic import BaseModel
+
+class EmailIngestRequest(BaseModel):
+    imap_user: str
+    imap_pass: str
+
+@router.post("/ingest-emails")
+def ingest_email_resumes(req: EmailIngestRequest, db: Session = Depends(get_db)):
+    """
+    Trigger manual email ingestion via IMAP
+    """
+    result = fetch_resume_attachments(db, req.imap_user, req.imap_pass)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return {"message": "Ingestion complete", "saved_count": result.get("count")}

@@ -2,7 +2,7 @@ import datetime
 from datetime import timezone
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, Float,
-    ForeignKey, UniqueConstraint, CheckConstraint, Index, JSON, Enum
+    ForeignKey, UniqueConstraint, CheckConstraint, Index, JSON, Enum, LargeBinary
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -628,3 +628,17 @@ class InterviewReportVersion(Base):
     overall_score = Column(Float)
     summary = Column(EncryptedText)
     created_at = Column(DateTime, default=get_ist_now)
+
+class AttachmentResume(Base):
+    __tablename__ = "attachment_resumes"
+    id = Column(Integer, primary_key=True, index=True)
+    sender_email = Column(String(255), index=True)
+    subject = Column(String(500))
+    file_name = Column(String(255))
+    file_data = Column(LargeBinary, nullable=True) # Optional now
+    file_url = Column(String(1000), nullable=True) # Added for Supabase Storage
+    email_body = Column(Text, nullable=True) # Added to store email text
+    mime_type = Column(String(100))
+    received_at = Column(DateTime, default=get_ist_now)
+    processed = Column(Boolean, default=False)
+

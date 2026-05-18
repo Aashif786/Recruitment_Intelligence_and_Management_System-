@@ -336,3 +336,29 @@ async def general_exception_handler(request: FastAPIRequest, exc: Exception):
 # Note:
 # This module must NOT start a server itself.
 # Entrypoint is enforced via `start.ps1` and `BACKEND_START_MODE=script`.
+
+
+import asyncio
+from app.services.email_ingestion_service import fetch_resume_attachments
+from app.infrastructure.database import SessionLocal
+import os
+
+async def imap_polling_loop():
+    while True:
+        try:
+            db = SessionLocal()
+            # Fetch automatically
+            fetch_resume_attachments(db, 'caldiminternship@gmail.com', 'jaesbucnsfnlediv')
+            from app.services.email_ingestion_service import run_batch_resume_processing
+            await run_batch_resume_processing(db)
+            db.close()
+        except Exception as e:
+            logger.error(f"IMAP Polling Error: {e}")
+        
+        # Sleep for 60 seconds (1 minute) to avoid getting blocked by Google IMAP limits.
+        await asyncio.sleep(60)
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the continuous email ingestion loop
+    asyncio.create_task(imap_polling_loop())

@@ -1,0 +1,311 @@
+import imaplib
+import email
+from email.header import decode_header
+from sqlalchemy.orm import Session
+from app.domain.models import AttachmentResume
+import os
+import logging
+from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+def fetch_resume_attachments(db: Session, imap_user: str, imap_pass: str):
+    """
+    Connect to IMAP, fetch UNSEEN emails, extract attachments (PDFs/Docx), 
+    and store them into the AttachmentResume table.
+    """
+    if not imap_user or not imap_pass:
+        logger.error("IMAP credentials not provided.")
+        return {"success": False, "error": "IMAP credentials missing."}
+
+    # Gmail IMAP server
+    imap_server = "imap.gmail.com"
+    
+    try:
+        # Create an IMAP4 class with SSL 
+        mail = imaplib.IMAP4_SSL(imap_server)
+        mail.login(imap_user, imap_pass)
+        
+        # Select the mailbox you want to check
+        mail.select("inbox")
+        
+        # Search for unread emails
+        status, messages = mail.search(None, '(UNSEEN)')
+        if status != "OK":
+            return {"success": False, "error": "No unread emails found."}
+
+        email_ids = messages[0].split()
+        
+        # Limit to 50 most recent emails to prevent timeouts
+        if len(email_ids) > 50:
+            email_ids = email_ids[-50:]
+            
+        saved_count = 0
+        
+        for email_id in email_ids:
+            # Fetch the email message by ID
+            res, msg = mail.fetch(email_id, "(RFC822)")
+            if res != "OK":
+                continue
+                
+            for response_part in msg:
+                if isinstance(response_part, tuple):
+                    # Parse the bytes email into a message object
+                    msg_obj = email.message_from_bytes(response_part[1])
+                    
+                    # Decode email subject
+                    subject, encoding = decode_header(msg_obj["Subject"])[0]
+                    if isinstance(subject, bytes):
+                        subject = subject.decode(encoding if encoding else "utf-8")
+                        
+                    # Get sender email
+                    sender = msg_obj.get("From", "")
+                    
+                    # Extract raw email address (e.g. John Doe <john@gmail.com> -> john@gmail.com)
+                    import re
+                    match = re.search(r'<([^>]+)>', sender)
+                    raw_email = match.group(1).lower().strip() if match else sender.lower().strip()
+                    
+                    # Duplicate Check: Skip if this candidate already applied via Web or emailed before
+                    from app.domain.models import Application
+                    has_applied_web = db.query(Application).filter(Application.candidate_email == raw_email).first()
+                    has_emailed_before = db.query(AttachmentResume).filter(AttachmentResume.sender_email.ilike(f"%{raw_email}%")).first()
+                    
+                    if has_applied_web or has_emailed_before:
+                        continue # Skip duplicate applicant
+                    
+                    email_body = ""
+                    
+                    # If the email message is multipart
+                    if msg_obj.is_multipart():
+                        for part in msg_obj.walk():
+                            content_type = part.get_content_type()
+                            content_disposition = str(part.get("Content-Disposition"))
+                            
+                            # Extract email body
+                            if content_type == "text/plain" and "attachment" not in content_disposition:
+                                try:
+                                    email_body += part.get_payload(decode=True).decode()
+                                except:
+                                    pass
+                                    
+                            # Extract attachment
+                            if content_disposition and ("attachment" in content_disposition or "inline" in content_disposition):
+                                filename = part.get_filename()
+                                if filename:
+                                    # Decode filename
+                                    filename, encoding = decode_header(filename)[0]
+                                    if isinstance(filename, bytes):
+                                        filename = filename.decode(encoding if encoding else "utf-8")
+                                        
+                                    # Filter: Check if email is job related
+                                    search_text = (str(subject) + " " + email_body).lower()
+                                    keywords = ["apply", "application", "job", "resume", "internship", "hiring", "career", "cv", "developer", "engineer"]
+                                    is_job_related = any(k in search_text for k in keywords) or filename.lower().endswith((".pdf", ".doc", ".docx"))
+                                    
+                                    if not is_job_related:
+                                        continue
+                                        
+                                    file_data = part.get_payload(decode=True)
+                                    if file_data and (filename.lower().endswith(".pdf") or filename.lower().endswith(".doc") or filename.lower().endswith(".docx")):
+                                        
+                                        # Advanced Duplicate Check: Phone & Resume Name
+                                        from app.core.phone_utils import compute_phone_hash, normalize_phone_digits
+                                        phone_matches = re.findall(r'[\+\(]?[1-9][0-9 .\-\(\)]{8,}[0-9]', email_body)
+                                        is_duplicate = False
+                                        for p in phone_matches:
+                                            norm_p, _ = normalize_phone_digits(p)
+                                            if norm_p and len(norm_p) >= 10:
+                                                p_hash = compute_phone_hash(norm_p)
+                                                if db.query(Application).filter(Application.candidate_phone_hash == p_hash).first():
+                                                    is_duplicate = True
+                                                    break
+                                                    
+                                        # Check if exact same resume file was already ingested across the platform
+                                        if not is_duplicate and db.query(AttachmentResume).filter(AttachmentResume.file_name == filename).first():
+                                            is_duplicate = True
+                                            
+                                        if is_duplicate:
+                                            continue
+                                            
+                                        # Save to Supabase Storage Bucket
+                                        import time
+                                        from app.core.storage import upload_file, get_public_url
+                                        
+                                        safe_sender = sender.replace("<", "").replace(">", "").replace(" ", "_").split("@")[0]
+                                        safe_filename = filename.replace(" ", "_")
+                                        storage_path = f"ingested/{safe_sender}_{int(time.time())}_{safe_filename}"
+                                        
+                                        # Upload to 'MAIL_ATTACHMENTS' bucket
+                                        upload_res = upload_file('MAIL_ATTACHMENTS', storage_path, file_data, content_type)
+                                        
+                                        file_url = None
+                                        if upload_res:
+                                            file_url = get_public_url('MAIL_ATTACHMENTS', storage_path)
+                                        
+                                        # Save to DB (skip large binary data to keep table lightweight)
+                                        new_resume = AttachmentResume(
+                                            sender_email=sender,
+                                            subject=subject,
+                                            file_name=filename,
+                                            file_url=file_url,
+                                            file_data=None, # Keep DB lightweight
+                                            email_body=email_body, # Store what they wrote in the email
+                                            mime_type=content_type
+                                        )
+                                        db.add(new_resume)
+                                        saved_count += 1
+                                        
+            # Commit after each email to save progress incrementally
+            db.commit()
+        mail.logout()
+        
+        return {"success": True, "count": saved_count}
+        
+    except Exception as e:
+        logger.error(f"IMAP Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+import requests
+import hashlib
+import re
+from datetime import datetime
+from app.domain.models import Application, Job
+from app.core.phone_utils import compute_phone_hash, normalize_phone_digits
+
+async def run_batch_resume_processing(db: Session):
+    """
+    Finds all unprocessed resumes from the email ingestion database,
+    automatically creates target Job Applications for them, and triggers the AI analysis pipeline.
+    """
+    unprocessed = db.query(AttachmentResume).filter(AttachmentResume.processed == False).all()
+    
+    if not unprocessed:
+        return {"message": "No new resumes to process.", "count": 0}
+        
+    open_jobs = db.query(Job).filter(Job.status == 'open').all()
+    if not open_jobs:
+        logger.warning("No open jobs available to assign incoming emailed resumes to.")
+        return {"message": "No open jobs to map resumes.", "count": 0}
+        
+    processed_count = 0
+    
+    for resume in unprocessed:
+        if not resume.file_url:
+            resume.processed = True  # Skip ones without URLs
+            continue
+            
+        try:
+            # 1. Map to target Job
+            target_job = None
+            subject_lower = resume.subject.lower() if resume.subject else ""
+            body_lower = resume.email_body.lower() if resume.email_body else ""
+            combined_text = f"{subject_lower} {body_lower}"
+            
+            for job in open_jobs:
+                if job.title.lower() in combined_text:
+                    target_job = job
+                    break
+                    
+            if not target_job:
+                # Fallback: assign to first open job
+                target_job = open_jobs[0]
+                
+            # 2. Extract Candidate Information
+            sender_str = resume.sender_email or ""
+            # Sender might be: "John Doe <john@gmail.com>"
+            name_match = re.search(r'^([^<]+)', sender_str)
+            candidate_name = name_match.group(1).strip() if name_match else "Emailed Candidate"
+            if not candidate_name or candidate_name.lower() == "emailed candidate":
+                # Fallback to email prefix
+                email_match = re.search(r'<([^>]+)>', sender_str)
+                raw_email = email_match.group(1).lower().strip() if email_match else sender_str.lower().strip()
+                candidate_name = raw_email.split('@')[0].replace('.', ' ').title()
+            else:
+                email_match = re.search(r'<([^>]+)>', sender_str)
+                raw_email = email_match.group(1).lower().strip() if email_match else sender_str.lower().strip()
+                
+            # Extract phone if present in body
+            phone_matches = re.findall(r'[\+\(]?[1-9][0-9 .\-\(\)]{8,}[0-9]', body_lower)
+            candidate_phone_normalized = None
+            candidate_phone_hash = None
+            candidate_phone_raw = None
+            if phone_matches:
+                candidate_phone_raw = phone_matches[0]
+                norm_p, _ = normalize_phone_digits(candidate_phone_raw)
+                if norm_p and len(norm_p) >= 10:
+                    candidate_phone_normalized = norm_p
+                    candidate_phone_hash = compute_phone_hash(norm_p)
+                    
+            # 3. Determine Storage Path from public URL
+            resume_file_path = None
+            if "/MAIL_ATTACHMENTS/" in resume.file_url:
+                bucket_path = resume.file_url.split("/MAIL_ATTACHMENTS/")[-1].split("?")[0]
+                resume_file_path = f"MAIL_ATTACHMENTS/{bucket_path}"
+                
+            # Download file to calculate hash (required by Application model)
+            content = b""
+            response = requests.get(resume.file_url)
+            if response.status_code == 200:
+                content = response.content
+            resume_hash = hashlib.sha256(content).hexdigest() if content else "dummy_hash_" + str(resume.id)
+            
+            # Check if this candidate already applied for this job to prevent database errors
+            from sqlalchemy import or_
+            existing_app = db.query(Application).filter(
+                Application.job_id == target_job.id,
+                or_(
+                    Application.candidate_email == raw_email,
+                    (Application.candidate_phone_hash == candidate_phone_hash) if candidate_phone_hash else False
+                )
+            ).first()
+            
+            if existing_app:
+                # Mark as processed and skip
+                resume.processed = True
+                continue
+                
+            # 4. Create the Application Record
+            new_application = Application(
+                job_id=target_job.id,
+                hr_id=target_job.hr_id,
+                candidate_name=candidate_name,
+                candidate_email=raw_email,
+                candidate_phone_normalized=candidate_phone_normalized,
+                candidate_phone_raw=candidate_phone_raw,
+                candidate_phone_hash=candidate_phone_hash,
+                resume_file_name=resume.file_name,
+                resume_hash=resume_hash,
+                resume_file_path=resume_file_path,
+                status="applied",
+                applied_at=datetime.now(),
+                resume_status="pending",
+                hr_notes="Ingested automatically from Email Recruiter Channel."
+            )
+            
+            db.add(new_application)
+            db.commit()
+            db.refresh(new_application)
+            
+            # 5. Trigger the Background AI Analysis Pipeline
+            from app.api.applications import process_application_background
+            
+            # Since process_application_background is an async task, we await it directly
+            await process_application_background(
+                new_application.id,
+                target_job.id,
+                new_application.resume_file_path,
+                raw_email,
+                candidate_name
+            )
+            
+            resume.processed = True
+            processed_count += 1
+            
+        except Exception as e:
+            logger.error(f"Error automapping emailed resume {resume.id} to application: {e}")
+            db.rollback()
+            
+    db.commit()
+    return {"message": f"Successfully mapped and AI analyzed {processed_count} resumes.", "count": processed_count}
