@@ -32,6 +32,7 @@ export const GlobalNavbar = React.memo(function GlobalNavbar() {
   const isDashboard = pathname?.startsWith('/dashboard')
   const isAuth = pathname?.startsWith('/auth')
   const isJobs = pathname?.startsWith('/jobs')
+  const isHome = pathname === '/'
   const isInterview = pathname?.startsWith('/interview')
 
   if (isInterview) return null
@@ -45,7 +46,7 @@ export const GlobalNavbar = React.memo(function GlobalNavbar() {
           <NotificationBell />
           <UserNav />
         </div>
-      ) : (isAuthenticated && !isJobs) ? (
+      ) : (isAuthenticated && !isJobs && !isHome) ? (
         <Link href={user?.role === 'candidate' ? '/jobs' : '/dashboard/hr'} className="w-full md:w-auto">
           <Button className="w-full md:w-auto rounded-full px-6 bg-primary text-primary-foreground hover:bg-primary/90 font-bold transition-all shadow-lg shadow-primary/20">
             {user?.role === 'candidate' ? 'Browse Jobs' : 'Go to Dashboard'} <ChevronRight className="ml-1 h-4 w-4" />
