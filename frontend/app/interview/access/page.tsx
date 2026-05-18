@@ -15,21 +15,13 @@ function InterviewAccessForm() {
   const [accessKey, setAccessKey] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  /**
-   * Holds the pending auto-submit `setTimeout` id (cleared on unmount / before reschedule).
-   * Named per interview access spec; value is a timer handle or null, not a boolean.
-   */
-  const autoAccessStartedRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasAttemptedRef = useRef<string | null>(null)
-  const isSubmittingRef = useRef(false)
 
   const handleSubmit = async (emailVal?: string, keyVal?: string) => {
     const finalEmail = emailVal ?? email
     const finalKey = keyVal ?? accessKey
     if (!finalEmail || !finalKey) return
-    if (loading || isSubmittingRef.current) return
+    if (loading) return
     
-    isSubmittingRef.current = true
     setLoading(true)
     setError('')
     try {
@@ -45,7 +37,6 @@ function InterviewAccessForm() {
       router.push('/interview/' + data.interview_id)
     } catch (err: any) {
       setError(err.message)
-      isSubmittingRef.current = false
     } finally {
       setLoading(false)
     }

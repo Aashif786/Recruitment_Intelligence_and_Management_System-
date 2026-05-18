@@ -691,6 +691,18 @@ async def send_offer_letter_email(to_email: str, candidate_name: str, company_na
     )
 
 
+async def send_screened_email(to_email: str, job_title: str, application: Any = None):
+    subject = "Update on Your Application"
+    body = f"""
+    <html><body style="font-family:sans-serif; color:#333;">
+      <h2>Application Update</h2>
+      <p>We are writing to let you know that your application for the <strong>{job_title}</strong> position has been successfully screened by our team.</p>
+      <p>Your profile is currently under review, and we will get back to you with the next steps soon.</p>
+      <br><p>Best Regards,<br>The Recruitment Team</p>
+    </body></html>
+    """
+    return await execute_email_with_retries(to_email, subject, body, event_type="APP_SCREENED")
+
 async def send_rejected_email(to_email: str, job_title: str, is_ai_auto_reject: bool = False, application: Any = None):
     subject = f"Update on your application for {job_title}"
     reason = "we found that your resume did not align closely enough with the job requirements." if is_ai_auto_reject else "we have decided to move forward with other candidates at this time."

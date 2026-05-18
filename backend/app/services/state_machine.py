@@ -96,6 +96,8 @@ _TRANSITION_TABLE: Dict[Tuple[CandidateState, TransitionAction], CandidateState]
 
 # Email mapping: target_state → email_type identifier
 EMAIL_TRIGGERS: Dict[Tuple[TransitionAction, CandidateState], str] = {
+    (TransitionAction.SYSTEM_PARSING_COMPLETE, CandidateState.SCREENED): "screened",
+    (TransitionAction.MARK_SCREENED, CandidateState.SCREENED): "screened",
     (TransitionAction.APPROVE_FOR_INTERVIEW, CandidateState.APTITUDE_ROUND): "approved_for_interview",
     (TransitionAction.APPROVE_FOR_INTERVIEW, CandidateState.AI_INTERVIEW): "approved_for_interview",
     (TransitionAction.APPROVE_FOR_INTERVIEW, CandidateState.INTERVIEW_SCHEDULED): "approved_for_interview",

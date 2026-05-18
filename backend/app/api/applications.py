@@ -1704,6 +1704,10 @@ async def update_application_status(
         logger.info(f"[EMAIL] Scheduling interview invitation email to {candidate_email}")
         from app.services.email_service import send_interview_invitation_email
         background_tasks.add_task(send_interview_invitation_email, application, raw_access_key)
+    elif result.email_type == "screened":
+        logger.info(f"[EMAIL] Scheduling screened email to {candidate_email}")
+        from app.services.email_service import send_screened_email
+        background_tasks.add_task(send_screened_email, candidate_email, job_title, application)
     elif result.email_type == "rejected":
         logger.info(f"[EMAIL] Scheduling rejected email to {candidate_email}")
         background_tasks.add_task(send_rejected_email, candidate_email, job_title, False, application)
