@@ -1698,32 +1698,54 @@ export default function ReportsPage() {
 
                 {/* Video Interview Recording */}
                 <div className="space-y-3">
-                  <h3 className="text-lg font-semibold flex items-center gap-2 text-blue-600">
-                    <Video className="h-5 w-5" />
-                    Interview Video Recording
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold flex items-center gap-2 text-blue-600">
+                      <Video className="h-5 w-5" />
+                      Interview Video Recording
+                    </h3>
+                    {viewingReport.video_url && (
+                      <a
+                        href={viewingReport.video_url?.startsWith('http') ? viewingReport.video_url : `${API_BASE_URL}${viewingReport.video_url}`}
+                        download={`interview_${viewingReport.id}_recording.webm`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 px-3 py-1.5 rounded-lg"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Download
+                      </a>
+                    )}
+                  </div>
                   {viewingReport.video_url ? (
                     <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl aspect-video relative group">
                       <video
                         key={viewingReport.id}
                         src={viewingReport.video_url?.startsWith('http') ? viewingReport.video_url : `${API_BASE_URL}${viewingReport.video_url}`}
                         controls
+                        preload="metadata"
                         className="w-full h-full"
-                        poster="/video-placeholder.png"
                         crossOrigin="use-credentials"
+                        onError={(e) => {
+                          // Hide broken player and show fallback
+                          const target = e.currentTarget
+                          const parent = target.closest('.video-wrapper') as HTMLElement
+                          if (parent) {
+                            parent.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-center p-8"><svg class="h-10 w-10 text-slate-500 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M17 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10M23 7l-6 4 6 4V7z"/></svg><p class="text-sm font-semibold text-slate-300">Video could not be loaded.</p><p class="text-xs text-slate-500 mt-1">The recording may still be processing or unavailable.</p></div>`
+                          }
+                        }}
                       />
                       <div className="absolute top-4 left-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Badge className="bg-black/50 backdrop-blur-md border-white/20 text-white flex items-center gap-2">
+                        <span className="inline-flex items-center gap-2 bg-black/50 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/20">
                           <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
                           Session Recorded
-                        </Badge>
+                        </span>
                       </div>
                     </div>
                   ) : (
                     <div className="bg-muted/30 border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center">
                       <CameraOff className="h-10 w-10 text-muted-foreground/40 mb-3" />
                       <p className="text-sm font-medium text-muted-foreground">No video recording available for this session.</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">Recording might have been disabled or failed during the interview.</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">The candidate may have blocked camera access, or recording failed during the interview.</p>
                     </div>
                   )}
                 </div>

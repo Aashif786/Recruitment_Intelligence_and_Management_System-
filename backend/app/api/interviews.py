@@ -2470,11 +2470,13 @@ async def get_interview_report(
             detail="Report not yet available"
         )
     
-    # Return report data plus video_url from interview
+    # Return report data plus video_url from interview — only when a recording actually exists
     report_dict = {column.name: getattr(report, column.name) for column in report.__table__.columns}
     
-    _settings = __import__('app.core.config', fromlist=['get_settings']).get_settings()
-    report_dict['video_url'] = f"/api/interviews/{interview.id}/video-stream"
+    if interview.video_recording_path:
+        report_dict['video_url'] = f"/api/interviews/{interview.id}/video-stream"
+    else:
+        report_dict['video_url'] = None
     
     return report_dict
 
