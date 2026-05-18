@@ -1505,7 +1505,7 @@ export default function InterviewPage() {
 
                     <div className="flex items-center gap-4">
                         {/* Proctoring Strikes Counter */}
-                        {interviewStatus === 'active' && (
+                        {interviewStatus === 'active' && isCameraActive && (
                             <div className="bg-white border-2 border-slate-100 px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm select-none">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Strikes</span>
                                 <div className="flex gap-1.5 h-3.5 items-center">
