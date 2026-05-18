@@ -1443,7 +1443,7 @@ export default function InterviewPage() {
 
                 {/* Fixed Camera Preview */}
                 {isCameraActive && (
-                    <div className="fixed bottom-6 right-6 z-[100] w-48 h-36 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 bg-slate-900 group transition-all hover:scale-110">
+                    <div className="fixed bottom-6 right-6 z-[100] w-48 h-36 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 bg-slate-900 group transition-all hover:scale-110 select-none">
                         <video
                             ref={(el) => {
                                 videoRef.current = el;
@@ -1457,12 +1457,31 @@ export default function InterviewPage() {
                             playsInline
                             className="w-full h-full object-cover"
                         />
-                        <div className="absolute top-2 right-2 flex gap-1">
+                        {/* Scanline Effect */}
+                        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-blue-500/0 via-blue-500/10 to-blue-500/0 h-[200%] animate-scan"></div>
+                        
+                        {/* High-tech Corner Brackets */}
+                        <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-blue-500 rounded-tl-sm pointer-events-none opacity-80"></div>
+                        <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-blue-500 rounded-tr-sm pointer-events-none opacity-80"></div>
+                        <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-blue-500 rounded-bl-sm pointer-events-none opacity-80"></div>
+                        <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-blue-500 rounded-tr-sm pointer-events-none opacity-80"></div>
+
+                        {/* Top-Right Simple Pulse Dot */}
+                        <div className="absolute top-2.5 right-2.5 flex gap-1">
                             <div className={`w-2 h-2 rounded-full ${!isFaceDetected || isMultipleFacesDetected ? 'bg-red-500' : !isFocusingOnMonitor ? 'bg-amber-500' : 'bg-green-500'} shadow-sm animate-pulse`}></div>
                         </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+
+                        {/* Top-Center Live AI Status Overlay */}
+                        <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10 pointer-events-none">
+                            <div className={`w-1 h-1 rounded-full animate-ping ${!isFaceDetected || isMultipleFacesDetected ? 'bg-red-500' : !isFocusingOnMonitor ? 'bg-amber-500' : 'bg-green-500'}`}></div>
+                            <span className="text-[6px] font-black text-white uppercase tracking-widest leading-none">
+                                {!isFaceDetected ? 'NO FACE' : isMultipleFacesDetected ? 'MULTIPLE' : !isFocusingOnMonitor ? 'AWAY' : 'AI SECURE'}
+                            </span>
+                        </div>
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 pointer-events-none">
                             <span className="text-[8px] font-black text-white uppercase tracking-wider flex items-center gap-1">
-                                <Video className="w-2 h-2" /> Live Proctoring
+                                <Video className="w-2 h-2 animate-pulse" /> Live Proctoring
                             </span>
                         </div>
                     </div>
@@ -1485,6 +1504,28 @@ export default function InterviewPage() {
                     </div>
 
                     <div className="flex items-center gap-4">
+                        {/* Proctoring Strikes Counter */}
+                        {interviewStatus === 'active' && (
+                            <div className="bg-white border-2 border-slate-100 px-5 py-2 rounded-2xl flex items-center gap-3 shadow-sm select-none">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Strikes</span>
+                                <div className="flex gap-1.5 h-3.5 items-center">
+                                    {[1, 2, 3, 4].map((s) => (
+                                        <div 
+                                            key={s} 
+                                            title={warnings >= s ? 'Violation recorded' : 'Secure'}
+                                            className={`w-4 h-4 rounded-full border flex items-center justify-center text-[7px] font-black transition-all ${
+                                                warnings >= s 
+                                                    ? 'bg-red-500 border-red-500 text-white shadow-sm shadow-red-200 animate-pulse' 
+                                                    : 'bg-slate-50 border-slate-200 text-slate-300'
+                                            }`}
+                                        >
+                                            {s}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className={`px-5 py-2 rounded-2xl shadow-xl font-black text-sm flex items-center gap-2 transition-all duration-500 border-2 ${timeLeft && timeLeft < 300 ? 'bg-red-500 border-red-400 text-white animate-pulse' : 'bg-white border-slate-100 text-slate-600'}`}>
                             <Clock className={`w-4 h-4 ${timeLeft && timeLeft < 300 ? 'animate-spin-slow' : ''}`} />
                             <span className="tabular-nums">{formatTime(timeLeft)}</span>
@@ -1587,7 +1628,7 @@ export default function InterviewPage() {
                                         <Button
                                             variant="ghost"
                                             disabled={isTranscribing}
-                                            className={`font-bold transition-all duration-300 ${isListening ? 'text-red-500 animate-pulse' : 'text-slate-400 hover:text-blue-600'}`}
+                                            className={`font-bold transition-all duration-300 ${isListening ? 'text-red-500 hover:text-red-600' : 'text-slate-400 hover:text-blue-600'}`}
                                             onClick={() => {
                                                 if (isListening) {
                                                     stopRecording()
@@ -1596,7 +1637,18 @@ export default function InterviewPage() {
                                                 }
                                             }}
                                         >
-                                            {isTranscribing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : (isListening ? <MicOff className="w-5 h-5 mr-2" /> : <Mic className="w-5 h-5 mr-2" />)}
+                                            {isTranscribing ? (
+                                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                                                            ) : isListening ? (
+                                                <div className="flex items-end gap-[2px] mr-2.5 h-3.5 select-none shrink-0">
+                                                    <span className="w-0.5 bg-red-500 rounded-full animate-equalise-1 origin-bottom h-full inline-block"></span>
+                                                    <span className="w-0.5 bg-red-500 rounded-full animate-equalise-2 origin-bottom h-full inline-block"></span>
+                                                    <span className="w-0.5 bg-red-500 rounded-full animate-equalise-3 origin-bottom h-full inline-block"></span>
+                                                    <span className="w-0.5 bg-red-500 rounded-full animate-equalise-4 origin-bottom h-full inline-block"></span>
+                                                </div>
+                                            ) : (
+                                                <Mic className="w-5 h-5 mr-2" />
+                                            )}
                                             {isTranscribing ? 'Converting to Text...' : (isListening ? 'Stop & Convert' : 'Use Voice (High Accuracy)')}
                                         </Button>
                                     </div>

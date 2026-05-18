@@ -362,3 +362,32 @@
 ::view-transition-new(root) {
   z-index: 9999;
 }
+
+/* Proctoring and Voice Recording Premium Animations */
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+.animate-scan {
+  animation: scan 4s linear infinite;
+}
+
+@keyframes equalise {
+  0%, 100% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1); }
+}
+.animate-equalise-1 {
+  animation: equalise 0.6s ease-in-out infinite alternate;
+}
+.animate-equalise-2 {
+  animation: equalise 0.8s ease-in-out infinite alternate;
+  animation-delay: 0.15s;
+}
+.animate-equalise-3 {
+  animation: equalise 0.5s ease-in-out infinite alternate;
+  animation-delay: 0.3s;
+}
+.animate-equalise-4 {
+  animation: equalise 0.7s ease-in-out infinite alternate;
+  animation-delay: 0.45s;
+}
