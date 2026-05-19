@@ -61,6 +61,9 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Scratch scripts and temporary files in backend
+backend/scratch/
+backend/debug_emails/
+backend/batch_analysis_inbox/
 backend/check_*.py
 backend/test_*.py
 backend/smtp_*.txt
