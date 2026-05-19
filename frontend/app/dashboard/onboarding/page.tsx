@@ -114,15 +114,15 @@ export default function OnboardingPage() {
             
             if (orderA !== orderB) return orderA - orderB
             
-            // Then by joining date
+            // Then by joining date (latest first)
             if (a.joining_date && b.joining_date) {
-                return new Date(a.joining_date).getTime() - new Date(b.joining_date).getTime()
+                return new Date(b.joining_date).getTime() - new Date(a.joining_date).getTime()
             }
             if (a.joining_date) return -1
             if (b.joining_date) return 1
             
-            // Then by name
-            return a.candidate_name.localeCompare(b.candidate_name)
+            // Then by newest entry
+            return b.id - a.id
         })
     }, [candidates])
 
