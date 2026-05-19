@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import useSWR from 'swr'
 import { performMutation } from '@/app/dashboard/lib/swr-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -97,10 +97,22 @@ export default function HRTicketsPage() {
     const endpoint = filter === 'feedback' 
         ? `/api/tickets/feedback?limit=${pageSize}&skip=${(currentPage - 1) * pageSize}` 
         : `/api/tickets?status=${filter}&limit=${pageSize}&skip=${(currentPage - 1) * pageSize}`
-    const { data: resp, isLoading, mutate } = useSWR<any>(endpoint)
+    const { data: resp, isLoading, mutate } = useSWR<any>(endpoint, {
+        refreshInterval: 8000,           // auto-poll every 8 seconds
+        revalidateOnFocus: true,          // revalidate when user tabs back in
+        revalidateOnReconnect: true,      // revalidate on network restore
+        dedupingInterval: 4000,
+    })
     
     const tickets = (filter === 'feedback' ? [] : (resp?.items || [])) as Ticket[]
     const feedbacks = (filter === 'feedback' ? (resp?.items || []) : []) as Feedback[]
+
+    // Sync the open dialog reactively — keeps ticket detail live without re-opening
+    useEffect(() => {
+        if (!selectedTicket) return
+        const fresh = tickets.find(t => t.id === selectedTicket.id)
+        if (fresh) setSelectedTicket(fresh)
+    }, [tickets])
 
 
 

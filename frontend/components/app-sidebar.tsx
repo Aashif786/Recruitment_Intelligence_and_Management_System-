@@ -64,10 +64,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         user?.role === 'hr' ? '/api/tickets/count' : null,
         (url: string) => fetcher<{ count: number }>(url),
         {
-            refreshInterval: 180000, // 3 min — ticket count badge
-            dedupingInterval: 60000,
-            revalidateOnFocus: false,
-            revalidateOnReconnect: false,
+            refreshInterval: 15000,  // 15s — keeps badge live after ticket actions
+            dedupingInterval: 8000,
+            revalidateOnFocus: true,
+            revalidateOnReconnect: true,
         }
     )
 
