@@ -5,6 +5,7 @@ from typing import List
 from datetime import datetime
 import secrets
 import logging
+import html
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +51,21 @@ def report_issue(
 
     application = interview.application
     
+    # Input validation and XSS mitigation
+    if len(issue.description) > 5000:
+        raise HTTPException(status_code=400, detail="Description exceeds maximum allowed length of 5000 characters.")
+    if len(issue.issue_type) > 100:
+        raise HTTPException(status_code=400, detail="Issue type exceeds maximum allowed length of 100 characters.")
+        
+    sanitized_issue_type = html.escape(issue.issue_type.strip())
+    sanitized_description = html.escape(issue.description.strip())
+    
     new_issue = InterviewIssue(
         interview_id=issue.interview_id,
         candidate_name=application.candidate_name,
         candidate_email=application.candidate_email,
-        issue_type=issue.issue_type,
-        description=issue.description,
+        issue_type=sanitized_issue_type,
+        description=sanitized_description,
         status='pending'
     )
     db.add(new_issue)
@@ -71,24 +81,39 @@ def report_issue(
 
 @router.post("/grievance", response_model=InterviewIssueResponse)
 def report_grievance(issue: GeneralGrievanceCreate, db: Session = Depends(get_db)):
+    # Uniform error response to mitigate email enumeration/information disclosure
+    generic_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid email or access key. Please ensure you use the key from your invitation email."
+    )
+
     # Find the most recent interview for this email
     interview = db.query(Interview).join(Application).filter(
         Application.candidate_email == issue.email.lower().strip()
     ).order_by(Interview.created_at.desc()).first()
     
     if not interview:
-        raise HTTPException(status_code=404, detail="No interview found for this email. Please ensure you've been invited.")
+        raise generic_error
 
     # Verify access key
     if not verify_password(issue.access_key, interview.access_key_hash):
-        raise HTTPException(status_code=401, detail="Invalid access key. Use the key from your invitation email.")
+        raise generic_error
+
+    # Input validation and XSS mitigation
+    if len(issue.description) > 5000:
+        raise HTTPException(status_code=400, detail="Description exceeds maximum allowed length of 5000 characters.")
+    if len(issue.issue_type) > 100:
+        raise HTTPException(status_code=400, detail="Issue type exceeds maximum allowed length of 100 characters.")
+
+    sanitized_issue_type = html.escape(issue.issue_type.strip())
+    sanitized_description = html.escape(issue.description.strip())
 
     new_issue = InterviewIssue(
         interview_id=interview.id,
         candidate_name=interview.application.candidate_name,
         candidate_email=issue.email,
-        issue_type=issue.issue_type,
-        description=issue.description,
+        issue_type=sanitized_issue_type,
+        description=sanitized_description,
         status='pending'
     )
     db.add(new_issue)
@@ -296,7 +321,8 @@ def resolve_ticket(
         # Just update response and send email, keep status as pending
         ticket.status = 'pending'
     
-    ticket.hr_response = resolution.hr_response or ticket.hr_response or ""
+    sanitized_response = html.escape(resolution.hr_response.strip()) if resolution.hr_response else ""
+    ticket.hr_response = sanitized_response or ticket.hr_response or ""
     ticket.resolved_at = (datetime.now() if ticket.status != 'pending' else None)
     
     # Pre-populate return fields from available relations
