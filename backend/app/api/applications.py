@@ -1318,14 +1318,16 @@ def get_ingested_emails(
     
     results = []
     for item in items:
-        # Check if an application exists with this email and filename
-        match = re.search(r'<([^>]+)>', item.sender_email)
-        raw_email = match.group(1).lower().strip() if match else item.sender_email.lower().strip()
-        
+        # Match application strictly by unique resume file name or Supabase path (ignores email-sender mismatches for referrers)
         app = db.query(Application).filter(
-            Application.candidate_email == raw_email,
             Application.resume_file_name == item.file_name
         ).first()
+        
+        if not app and item.file_url:
+            bucket_path = item.file_url.split("/MAIL_ATTACHMENTS/")[-1].split("?")[0]
+            app = db.query(Application).filter(
+                Application.resume_file_path.like(f"%{bucket_path}%")
+            ).first()
         
         results.append({
             "id": item.id,
