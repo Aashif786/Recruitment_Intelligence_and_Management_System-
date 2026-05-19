@@ -71,7 +71,27 @@ def fetch_resume_attachments(db: Session, imap_user: str, imap_pass: str):
                     from app.domain.models import Application, Job
                     import re
                     
-                    job_code_match = re.search(r'JOB-[A-Z0-9]{6}', str(subject), re.IGNORECASE)
+                    # 1. Parse email body first (supports both multipart and single-part text messages)
+                    email_body = ""
+                    if msg_obj.is_multipart():
+                        for part in msg_obj.walk():
+                            content_type = part.get_content_type()
+                            content_disposition = str(part.get("Content-Disposition"))
+                            if content_type == "text/plain" and "attachment" not in content_disposition:
+                                try:
+                                    email_body += part.get_payload(decode=True).decode()
+                                except:
+                                    pass
+                    else:
+                        try:
+                            email_body = msg_obj.get_payload(decode=True).decode()
+                        except:
+                            pass
+
+                    # Smart Duplicate Check: Skip if they already applied to the same specific job
+                    # Checks BOTH subject and email body for active job code matching
+                    combined_text_to_check = f"{str(subject)} {email_body}"
+                    job_code_match = re.search(r'JOB-[A-Z0-9]{6}', combined_text_to_check, re.IGNORECASE)
                     target_job = None
                     if job_code_match:
                         extracted_code = job_code_match.group(0).upper().strip()
@@ -85,7 +105,7 @@ def fetch_resume_attachments(db: Session, imap_user: str, imap_pass: str):
                         if existing_app:
                             continue # Skip duplicate application for this specific job
                     else:
-                        # Fallback: if no specific job code in subject, avoid double-fetching if they already have an unprocessed resume
+                        # Fallback: avoid double-fetching if they already have an unprocessed resume
                         has_pending = db.query(AttachmentResume).filter(
                             AttachmentResume.sender_email.ilike(f"%{raw_email}%"),
                             AttachmentResume.processed == False
@@ -93,21 +113,12 @@ def fetch_resume_attachments(db: Session, imap_user: str, imap_pass: str):
                         if has_pending:
                             continue
                     
-                    email_body = ""
-                    
-                    # If the email message is multipart
+                    # 2. Extract and process attachments
                     if msg_obj.is_multipart():
                         for part in msg_obj.walk():
                             content_type = part.get_content_type()
                             content_disposition = str(part.get("Content-Disposition"))
                             
-                            # Extract email body
-                            if content_type == "text/plain" and "attachment" not in content_disposition:
-                                try:
-                                    email_body += part.get_payload(decode=True).decode()
-                                except:
-                                    pass
-                                    
                             # Extract attachment
                             if content_disposition and ("attachment" in content_disposition or "inline" in content_disposition):
                                 filename = part.get_filename()
