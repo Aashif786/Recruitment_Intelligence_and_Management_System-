@@ -401,18 +401,19 @@ def resolve_ticket(
         ticket.is_reissue_granted = True
         
         # Reset interview stage if it was completed/terminated early
-        if not ticket.interview.interview_stage or ticket.interview.interview_stage in ('completed', 'terminated'):
-            if getattr(ticket.interview, 'aptitude_completed', False) or not (job and job.aptitude_enabled):
-                ticket.interview.interview_stage = 'first_level'
-            else:
-                ticket.interview.interview_stage = 'aptitude'
-                
-        # Move application out of terminal 'rejected' state if it was rejected due to this session
-        if app and app.status == 'rejected':
-            if ticket.interview.interview_stage == 'first_level':
-                app.status = 'ai_interview'
-            else:
-                app.status = 'aptitude_round'
+        if ticket.interview:
+            if not ticket.interview.interview_stage or ticket.interview.interview_stage in ('completed', 'terminated'):
+                if getattr(ticket.interview, 'aptitude_completed', False) or not (job and job.aptitude_enabled):
+                    ticket.interview.interview_stage = 'first_level'
+                else:
+                    ticket.interview.interview_stage = 'aptitude'
+                    
+            # Move application out of terminal 'rejected' state if it was rejected due to this session
+            if app and app.status == 'rejected':
+                if ticket.interview.interview_stage == 'first_level':
+                    app.status = 'ai_interview'
+                else:
+                    app.status = 'aptitude_round'
         
         # Send reissue email if requested
         if resolution.send_email:
@@ -426,6 +427,27 @@ def resolve_ticket(
             )
             logger.info(f"RE-ISSUED KEY queued for {ticket.candidate_email}")
     else:
+        if resolution.action in ('resolve', 'resolved'):
+            # Reactivate existing interview without changing the key
+            if ticket.interview:
+                ticket.interview.is_used = False
+                ticket.interview.status = 'not_started'
+                ticket.interview.expires_at = get_ist_now() + timedelta(days=10)
+                
+                # Reset interview stage if it was completed/terminated early
+                if not ticket.interview.interview_stage or ticket.interview.interview_stage in ('completed', 'terminated'):
+                    if getattr(ticket.interview, 'aptitude_completed', False) or not (job and job.aptitude_enabled):
+                        ticket.interview.interview_stage = 'first_level'
+                    else:
+                        ticket.interview.interview_stage = 'aptitude'
+                        
+                # Move application out of terminal 'rejected' state if it was rejected due to this session
+                if app and app.status == 'rejected':
+                    if ticket.interview.interview_stage == 'first_level':
+                        app.status = 'ai_interview'
+                    else:
+                        app.status = 'aptitude_round'
+
         # Send resolution/dismissal email if requested
         if resolution.send_email and resolution.hr_response:
             background_tasks.add_task(
