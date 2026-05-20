@@ -10,22 +10,26 @@ interface ScrollContainerProps {
 
 /**
  * ScrollContainer is the single scroll authority for non-dashboard pages.
- * On dashboard pages this is overflow-hidden; the dashboard layout owns scrolling.
- * On all other pages this is overflow-y-auto so content can scroll naturally.
  *
- * The inner wrapper div is removed intentionally — it was creating a second
- * flex/height context that triggered a native OS-level scrollbar alongside
- * the styled one.
+ * Dashboard / auth → overflow-hidden on <main>; the dashboard layout owns
+ *   its own overflow-y-auto content zone. The inner div uses min-h-0 so the
+ *   flex chain stays bounded (no double scroll in the sidebar layout).
+ *
+ * Public pages (landing, jobs, etc.) → overflow-y-auto on <main>; the inner
+ *   div must NOT have min-h-0, otherwise it gets clamped to the viewport and
+ *   both it AND <main> register as scroll zones (double scrollbar).
  */
 export function ScrollContainer({ children }: ScrollContainerProps) {
   const pathname = usePathname()
   const isDashboard = pathname?.startsWith('/dashboard')
   const isAuth = pathname?.startsWith('/auth')
+  const isConstrained = isDashboard || isAuth
 
   return (
-    <main className={`flex-1 min-h-0 w-full flex flex-col ${isDashboard || isAuth ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+    <main className={`flex-1 min-h-0 w-full flex flex-col ${isConstrained ? 'overflow-hidden' : 'overflow-y-auto'}`}>
       <ErrorBoundary>
-        <div className="flex-1 flex flex-col min-h-0">
+        {/* min-h-0 only for dashboard/auth where the sidebar flex-chain must stay bounded */}
+        <div className={`flex-1 flex flex-col${isConstrained ? ' min-h-0' : ''}`}>
           {children}
         </div>
       </ErrorBoundary>
