@@ -15,7 +15,7 @@ import shutil
 from app.core.config import get_settings
 from app.core.observability import log_json
 from app.infrastructure.database import get_db
-from app.domain.models import User, Interview, Application, InterviewQuestion, InterviewAnswer, InterviewReport, Job, InterviewReportVersion, InterviewMonitoringEvent
+from app.domain.models import User, Interview, Application, InterviewQuestion, InterviewAnswer, InterviewAnswerVersion, InterviewReport, Job, InterviewReportVersion, InterviewMonitoringEvent
 from app.core.timezone import get_ist_now, to_naive_ist
 from app.domain.schemas import (
     InterviewStart, InterviewAnswerSubmit, InterviewResponse, 
@@ -968,6 +968,13 @@ async def access_interview(
         )
         
         is_ready = existing_count >= expected_count
+        
+        # Readiness Fail-safe: If expected count is high but we have 0 questions, 
+        # force re-generation even if is_ready might be True (e.g. expected_count was 0)
+        if existing_count == 0 and expected_count > 0:
+            is_ready = False
+            logger.warning(f"Interview {interview.id} has 0 questions but expected {expected_count}. Forcing generation.")
+
         response_data = {
             "access_token": token,
             "token_type": "bearer",
@@ -1066,6 +1073,7 @@ async def generate_test_token(
 @router.post("/{interview_id}/start")
 async def start_interview_session(
     interview_id: int,
+    data: InterviewStart,
     interview_session: Interview = Depends(get_current_interview_any_status),
     db: Session = Depends(get_db),
 ):
@@ -1078,6 +1086,12 @@ async def start_interview_session(
     """
     if interview_session.id != interview_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    if not data.camera_active or not data.mic_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Camera and Microphone access are mandatory to start the interview."
+        )
 
     interview = db.query(Interview).options(
         joinedload(Interview.application).joinedload(Application.job)
@@ -1414,20 +1428,22 @@ async def evaluate_answer_task(
     if evaluation is not None:
         ai_used = True
 
+        # Map scores from AI response to model fields with safe defaults
         if question_type == "behavioral":
-            technical_score = evaluation.get("relevance", 0)
-            completeness_score = evaluation.get("action_impact", 0)
+            technical_score = evaluation.get("relevance", evaluation.get("technical_accuracy", 0))
+            completeness_score = evaluation.get("action_impact", evaluation.get("completeness", 0))
             clarity_score = evaluation.get("clarity", 0)
-            depth_score = 0
-            practicality_score = 0
+            depth_score = evaluation.get("depth", 0)
+            practicality_score = evaluation.get("practicality", 0)
         else:
-            technical_score = evaluation.get("technical_accuracy", 0)
-            completeness_score = evaluation.get("completeness", 0)
+            technical_score = evaluation.get("technical_accuracy", evaluation.get("relevance", 0))
+            completeness_score = evaluation.get("completeness", evaluation.get("action_impact", 0))
             clarity_score = evaluation.get("clarity", 0)
             depth_score = evaluation.get("depth", 0)
             practicality_score = evaluation.get("practicality", 0)
 
         answer_score = evaluation.get("overall", 0)
+        # Default to high confidence for AI results, low for fallbacks
         confidence_score = float(evaluation.get("confidence_score", 0.85))
         answer_evaluation_json = json.dumps(evaluation)
     else:
@@ -1582,7 +1598,37 @@ async def submit_answer(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Question not found in this session."
             )
+            
+        # 3.5. Granular Validation of Answer Text
+         answer_len = len(data.answer_text or "")
+         if answer_len > 10000:
+             logger.warning(f"Extremely long answer detected for interview {interview_id}: {answer_len} chars")
+         
+         # Reject empty or purely whitespace answers for non-aptitude questions
+         if (current_question.question_type or "").lower() != "aptitude":
+             if not data.answer_text or not data.answer_text.strip():
+                 raise HTTPException(
+                     status_code=status.HTTP_400_BAD_REQUEST,
+                     detail="Answer cannot be empty. Please provide a response."
+                 )
+             if len(data.answer_text.strip()) < 3:
+                 raise HTTPException(
+                     status_code=status.HTTP_400_BAD_REQUEST,
+                     detail="Your answer is too short. Please provide a more detailed response."
+                 )
         
+        # Record monitoring event for answer submission
+        try:
+            monitoring_event = InterviewMonitoringEvent(
+                interview_id=interview_id,
+                event_type="answer_submitted",
+                confidence_score=1.0,
+                timestamp=get_ist_now()
+            )
+            db.add(monitoring_event)
+        except Exception as e:
+            logger.warning(f"Failed to record monitoring event for interview {interview_id}: {e}")
+
         # 4. Check if answer exists (we will update it instead of rejecting)
         existing_answer = db.query(InterviewAnswer).filter(
             InterviewAnswer.question_id == data.question_id
@@ -1658,22 +1704,50 @@ async def submit_answer(
         try:
             stored_answer_text = data.answer_text
             
-            # Resolve aptitude index to actual text if possible for better reporting
+            # Resolve aptitude index or letter to actual text if possible for better reporting
             if current_question.question_type == "aptitude" and current_question.options:
                 try:
                     options = json.loads(current_question.options)
-                    if isinstance(options, list):
-                        submitted_val = data.answer_text.strip()
-                        # If the submission is a simple digit, it's likely an index from the radio buttons
+                    if isinstance(options, list) and len(options) > 0:
+                        submitted_val = data.answer_text.strip().upper()
+                        resolved_idx = -1
+                        
+                        # Case 1: Simple digit index (0, 1, 2...)
                         if submitted_val.isdigit():
-                            idx = int(submitted_val)
-                            if 0 <= idx < len(options):
-                                stored_answer_text = str(options[idx])
-                                logger.info(f"Resolved aptitude index {idx} to text for session {interview_id}: {stored_answer_text}")
+                            resolved_idx = int(submitted_val)
+                        # Case 2: Letter index (A, B, C...)
+                        elif len(submitted_val) == 1 and 'A' <= submitted_val <= 'Z':
+                            resolved_idx = ord(submitted_val) - ord('A')
+                        # Case 3: "Option A", "Choice B" etc.
+                        elif any(submitted_val.startswith(p) for p in ["OPTION ", "CHOICE "]):
+                            last_char = submitted_val[-1]
+                            if 'A' <= last_char <= 'Z':
+                                resolved_idx = ord(last_char) - ord('A')
+                            elif last_char.isdigit():
+                                resolved_idx = int(last_char)
+
+                        if 0 <= resolved_idx < len(options):
+                            stored_answer_text = str(options[resolved_idx])
+                            logger.info(f"Resolved aptitude input '{data.answer_text}' to text for session {interview_id}: {stored_answer_text}")
                 except Exception as e:
-                    logger.warning(f"Failed to resolve aptitude index for session {interview_id}: {e}")
+                    logger.warning(f"Failed to resolve aptitude input for session {interview_id}: {e}")
 
             if existing_answer:
+                # ── Phase 7: Answer Versioning ──
+                try:
+                    version_count = db.query(InterviewAnswerVersion).filter(InterviewAnswerVersion.answer_id == existing_answer.id).count()
+                    old_version = InterviewAnswerVersion(
+                        answer_id=existing_answer.id,
+                        answer_text=existing_answer.answer_text,
+                        answer_score=existing_answer.answer_score,
+                        submitted_at=existing_answer.submitted_at or get_ist_now(),
+                        version_number=version_count + 1
+                    )
+                    db.add(old_version)
+                    db.flush()
+                except Exception as e:
+                    logger.warning(f"Failed to version old interview answer: {e}")
+
                 existing_answer.answer_text = stored_answer_text
                 existing_answer.submitted_at = get_ist_now()
                 # reset evaluation so it gets re-evaluated
@@ -1769,6 +1843,12 @@ async def complete_aptitude(
     
     if not interview:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+        
+    if interview.status != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail=f"Action blocked: Session is in {interview.status} state."
+        )
     
     # Idempotency guard: if already past aptitude, return success
     if interview.interview_stage != STAGE_APTITUDE:
@@ -2057,10 +2137,18 @@ async def _finalize_interview_and_report_internal(db: Session, interview_id: int
     technical_avg = sum(technical_scores) / len(technical_scores) if technical_scores else 0.0
     behavioral_avg = sum(behavioral_scores) / len(behavioral_scores) if behavioral_scores else 0.0
 
-    # Weighted rollup:
-    # - technical questions: 70%
-    # - behavioral questions: 30%
-    interview_score = round((technical_avg * 0.7 + behavioral_avg * 0.3), 2) if (technical_scores or behavioral_scores) else 0.0
+    # Weighted rollup (Robust calculation)
+    # If both categories exist: 70% technical, 30% behavioral
+    # If only one exists: 100% of that category
+    if technical_scores and behavioral_scores:
+        interview_score = round((technical_avg * 0.7 + behavioral_avg * 0.3), 2)
+    elif technical_scores:
+        interview_score = round(technical_avg, 2)
+    elif behavioral_scores:
+        interview_score = round(behavioral_avg, 2)
+    else:
+        interview_score = 0.0
+
     behavioral_score = round(behavioral_avg, 2)
     ai_used_count = 0
     fallback_used_count = 0
@@ -2144,6 +2232,15 @@ async def _finalize_interview_and_report_internal(db: Session, interview_id: int
 
         report_data = None
         last_rep_err = None
+        
+        # Prepare aptitude summary for the report context
+        aptitude_context = None
+        if interview.aptitude_completed and interview.aptitude_score is not None:
+            aptitude_context = {
+                "score": round(interview.aptitude_score, 2),
+                "status": "Completed"
+            }
+
         for attempt in range(1, 4):
             try:
                 report_data = await generate_interview_report(
@@ -2152,6 +2249,7 @@ async def _finalize_interview_and_report_internal(db: Session, interview_id: int
                     overall_score=interview_score,
                     primary_evaluated_skills=primary_skills,
                     termination_reason=term_reason,
+                    aptitude_context=aptitude_context, # Pass aptitude performance
                 )
                 break
             except Exception as rep_e:
@@ -2379,6 +2477,7 @@ async def end_interview(
 @router.post("/{interview_id}/abandon")
 async def abandon_interview(
     interview_id: int,
+    background_tasks: BackgroundTasks,
     interview_session: Interview = Depends(get_current_interview_any_status),
     db: Session = Depends(get_db)
 ):
@@ -2389,8 +2488,11 @@ async def abandon_interview(
     if interview_session.id != interview_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+    interview = db.query(Interview).filter(Interview.id == interview_id).with_for_update().first()
     
+    if not interview:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+        
     if interview.status != "in_progress" or interview.interview_stage == STAGE_COMPLETED:
         return {"success": True, "message": f"Interview is already in {interview.status} state."}
 
@@ -2423,10 +2525,10 @@ async def abandon_interview(
         
         db.commit()
         
-        # Generate final report for whatever was answered so far
-        await _finalize_interview_and_report_internal(db, interview_id)
+        # Generate final report for whatever was answered so far in background
+        background_tasks.add_task(_finalize_interview_and_report, interview_id)
         
-        return {"success": True, "message": "Interview abandoned and reported."}
+        return {"success": True, "message": "Interview abandoned. Report generation queued."}
     except Exception as e:
         db.rollback()
         logger.error(f"Error in abandon_interview: {e}")
@@ -2632,6 +2734,9 @@ async def upload_interview_video(
     storage_path = f"{interview_id}/{filename}"
     
     try:
+        if file.size and file.size > 150 * 1024 * 1024:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Video file exceeds 150MB limit.")
+            
         content = await file.read()
         logger.info(f"Uploading video for interview {interview_id}: size={len(content)} bytes, type={file.content_type}")
         returned_path = upload_file(

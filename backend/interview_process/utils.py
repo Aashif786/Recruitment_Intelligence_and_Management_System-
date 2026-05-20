@@ -107,10 +107,44 @@ def analyze_response_quality(response_text: str) -> Dict:
         "has_explanation": any(indicator in response_text for indicator in 
                               ["because", "therefore", "thus", "so", "since"]),
         "sentence_count": len([s for s in response_text.split('.') if s.strip()]),
-        "avg_sentence_length": word_count / max(1, len([s for s in response_text.split('.') if s.strip()]))
+        "avg_sentence_length": word_count / max(1, len([s for s in response_text.split('.') if s.strip()])),
+        "is_gibberish": is_gibberish(response_text)
     }
     
     return metrics
+
+def is_gibberish(text: str) -> bool:
+    """Detect if the text is likely gibberish or non-meaningful input"""
+    if not text or len(text.strip()) < 5:
+        return False
+        
+    text_clean = text.strip()
+    words = text_clean.split()
+    
+    # 1. Extreme character repetition (e.g. "aaaaaaa")
+    if re.search(r'(.)\1{9,}', text_clean):
+        return True
+        
+    # 2. Too few vowels (for English-like text)
+    vowels = len(re.findall(r'[aeiouAEIOU]', text_clean))
+    consonants = len(re.findall(r'[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]', text_clean))
+    if consonants > 0 and vowels / (vowels + consonants) < 0.1:
+        # Very few vowels compared to consonants, likely gibberish or code snippet without context
+        if len(text_clean) > 20:
+            return True
+
+    # 3. Average word length is suspiciously high (no spaces or random chars)
+    if words:
+        avg_word_len = len(text_clean.replace(" ", "")) / len(words)
+        if avg_word_len > 25:
+            return True
+            
+    # 4. High ratio of non-alphanumeric characters (excluding common punctuation)
+    special_chars = len(re.findall(r'[^a-zA-Z0-9\s.,!?;:\'\"()-]', text_clean))
+    if len(text_clean) > 10 and special_chars / len(text_clean) > 0.4:
+        return True
+        
+    return False
 
 def get_performance_feedback(avg_score: float, detailed_scores: Dict) -> str:
     """Generate performance feedback based on scores"""

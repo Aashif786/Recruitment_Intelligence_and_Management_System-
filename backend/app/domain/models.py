@@ -350,13 +350,27 @@ class InterviewAnswer(Base):
     fallback_used = Column(Boolean, default=False)
     confidence_score = Column(Float, nullable=True)
     reasoning = Column(JSON, nullable=True)  # AI reasoning for scores
-    submitted_at = Column(DateTime, default=get_ist_now, server_default=func.now())
+    submitted_at = Column(DateTime(timezone=True), default=get_ist_now)
     evaluated_at = Column(DateTime)
 
     # Relationships
     question = relationship("InterviewQuestion", back_populates="answers")
     interview = relationship("Interview")
     evaluation = relationship("AIEvaluation", back_populates="answer", uselist=False, cascade="all, delete-orphan")
+    versions = relationship("InterviewAnswerVersion", back_populates="answer", cascade="all, delete-orphan")
+
+
+class InterviewAnswerVersion(Base):
+    __tablename__ = "interview_answer_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    answer_id = Column(Integer, ForeignKey('interview_answers.id', ondelete="CASCADE"), nullable=False, index=True)
+    answer_text = Column(EncryptedText, nullable=False)
+    answer_score = Column(Float, nullable=True)
+    submitted_at = Column(DateTime(timezone=True), default=get_ist_now)
+    version_number = Column(Integer, default=1)
+
+    answer = relationship("InterviewAnswer", back_populates="versions")
 
 
 class InterviewReport(Base):

@@ -505,15 +505,19 @@ class ResponseAnalyzer:
             similarity > 0.85 or 
             (answer_clean and question_clean and (answer_clean == question_clean or (len(answer_clean) > 10 and answer_clean in question_clean)))
         )
+        
+        is_gibberish_input = metrics.get("is_gibberish", False)
 
-        if is_repetition:
-            logger.warning(f"Red flag: Question repetition detected. Similarity: {similarity:.2f}")
+        if is_repetition or is_gibberish_input:
+            reason = "repetition of the question" if is_repetition else "gibberish or non-meaningful input"
+            logger.warning(f"Red flag: {reason} detected. Similarity: {similarity:.2f}")
             red_flag_res = {
                 "technical_accuracy": 0.0, "completeness": 0.0, "clarity": 0.0, 
                 "depth": 0.0, "practicality": 0.0, "overall": 0.0,
                 "relevance": 0.0, "action_impact": 0.0,
-                "strengths": [], "weaknesses": ["Major red flag: Answer is a repetition of the question."],
-                "reasoning": "Automatic detection: Candidate answer is a direct repetition of the question text."
+                "confidence_score": 1.0, # Certain it's a red flag
+                "strengths": [], "weaknesses": [f"Major red flag: Answer is a {reason}."],
+                "reasoning": f"Automatic detection: Candidate answer is a {reason}."
             }
             return red_flag_res
 
@@ -935,10 +939,12 @@ class ResponseAnalyzer:
             if re.search(r'\b' + re.escape(keyword) + r'\b', response_lower):
                 return True, "candidate_request"
         
-        # Check for extremely poor responses
-        # SKIP THIS for aptitude stage — short answers (e.g., "42", "Paris") are common and valid.
-        if question_type != "aptitude" and len(response.split()) < 5 and "skip" not in response_lower:
-            return True, "poor_response"
+        # Check for extremely poor or gibberish responses
+        # We only terminate for gibberish if it's substantial (not just a short typo)
+        if len(response_lower) > 50:
+            from .utils import is_gibberish
+            if is_gibberish(response):
+                return True, "misconduct" # Gibberish is treated as misconduct/non-serious attempt
         
         return False, ""
     

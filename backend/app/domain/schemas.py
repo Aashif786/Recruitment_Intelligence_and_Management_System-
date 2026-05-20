@@ -627,7 +627,8 @@ class InterviewReportResponse(BaseModel):
 # ============================================================================
 
 class InterviewStart(BaseModel):
-    application_id: int
+    camera_active: bool
+    mic_active: bool
 
 class InterviewAccess(BaseModel):
     email: str
@@ -636,6 +637,13 @@ class InterviewAccess(BaseModel):
 class InterviewAnswerSubmit(BaseModel):
     question_id: int
     answer_text: str
+
+    @field_validator('answer_text')
+    @classmethod
+    def validate_answer_text(cls, v):
+        if len(v) > 50000:
+            raise ValueError("Answer text is too long (max 50,000 characters).")
+        return v
 
 class InterviewQuestionResponse(BaseModel):
     id: int
@@ -717,6 +725,13 @@ class MonitoringEventCreate(BaseModel):
     confidence_score: Optional[float] = None
     frame_snapshot: Optional[str] = None  # Base64 string
     video_reference: Optional[str] = None
+
+    @field_validator('frame_snapshot')
+    @classmethod
+    def validate_frame(cls, v):
+        if v and len(v) > 2000000:
+            raise ValueError("Frame snapshot payload is too large (max ~2MB).")
+        return v
 
 class MonitoringEventResponse(BaseModel):
     id: int

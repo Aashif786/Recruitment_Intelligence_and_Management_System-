@@ -76,6 +76,7 @@ export default function InterviewPage() {
     const [isMultipleFacesDetected, setIsMultipleFacesDetected] = useState(false)
     const [isFocusingOnMonitor, setIsFocusingOnMonitor] = useState(true)
     const [isCameraActive, setIsCameraActive] = useState(false)
+    const [isMicActive, setIsMicActive] = useState(false)
     const [mediaError, setMediaError] = useState(false)
 
     // Support States
@@ -163,15 +164,37 @@ export default function InterviewPage() {
         }
     }, [interviewId])
 
-    // Track visited questions and section transitions
+    // Continuous Device Monitoring
     useEffect(() => {
-        // ... (cleanup logic)
-        return () => {
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                mediaRecorderRef.current.stop()
+        if (interviewStatus !== 'active') return;
+
+        const monitorInterval = setInterval(() => {
+            const stream = streamRef.current;
+            if (!stream) return;
+
+            const videoTrack = stream.getVideoTracks()[0];
+            const audioTrack = stream.getAudioTracks()[0];
+
+            const isVideoActive = videoTrack && videoTrack.readyState === 'live' && videoTrack.enabled;
+            const isAudioActive = audioTrack && audioTrack.readyState === 'live' && audioTrack.enabled;
+
+            setIsCameraActive(!!isVideoActive);
+            setIsMicActive(!!isAudioActive);
+
+            if (!isVideoActive || !isAudioActive) {
+                const missing = [];
+                if (!isVideoActive) missing.push("Camera");
+                if (!isAudioActive) missing.push("Microphone");
+                
+                toast.error(`Hardware Disconnected: ${missing.join(" and ")} access lost. Please reconnect to continue.`, {
+                    id: 'hardware-disconnect',
+                    duration: 5000
+                });
             }
-        }
-    }, [])
+        }, 3000);
+
+        return () => clearInterval(monitorInterval);
+    }, [interviewStatus]);
 
     useEffect(() => {
         return () => {
@@ -317,12 +340,25 @@ export default function InterviewPage() {
         try {
             let stream = streamRef.current;
             if (!stream) {
-                stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true })
+                // Mandatory camera and mic access
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 }, 
+                    audio: true 
+                })
                 streamRef.current = stream
             }
-            setIsCameraActive(true)
+            
+            const hasVideo = stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled
+            const hasAudio = stream.getAudioTracks().length > 0 && stream.getAudioTracks()[0].enabled
+            
+            setIsCameraActive(hasVideo)
+            setIsMicActive(hasAudio)
 
-            // Standard Video Recording
+            if (!hasVideo || !hasAudio) {
+                throw new Error("REQUIRED_DEVICES_MISSING")
+            }
+
+            // Standard Video/Audio Recording
             const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
             overallMediaRecorderRef.current = mediaRecorder
             overallVideoChunksRef.current = []
@@ -333,30 +369,17 @@ export default function InterviewPage() {
                 }
             }
 
-            mediaRecorder.start(1000) // Capture in 1s chunks to avoid large data loss
+            mediaRecorder.start(1000) 
 
             // Start Face Detection
             await startFaceDetection()
             setMediaError(false)
         } catch (err) {
             console.error("Overall recording failed", err)
-            if (faceCheckIntervalRef.current) {
-                clearInterval(faceCheckIntervalRef.current)
-                faceCheckIntervalRef.current = null
-            }
-            if (overallMediaRecorderRef.current && overallMediaRecorderRef.current.state !== 'inactive') {
-                try {
-                    overallMediaRecorderRef.current.stop()
-                } catch {
-                    /* ignore */
-                }
-            }
-            overallMediaRecorderRef.current = null
-            streamRef.current?.getTracks().forEach((t) => t.stop())
-            streamRef.current = null
             setIsCameraActive(false)
+            setIsMicActive(false)
             setMediaError(true)
-            throw new Error("MEDIA_PERMISSION_DENIED")
+            throw err
         }
     }
 
@@ -567,7 +590,7 @@ export default function InterviewPage() {
                     )
                     setInterviewStatus('completed')
                     setShowIssueDialog(true)
-                    toast.error("Session Terminated: Multiple proctoring violations detected (tab switching or losing focus).")
+                    toast.error("Session Terminated: Multiple security violations detected (tab switching or losing focus).")
                 } catch (error) {
                     console.log("Failed to end interview", error)
                     interviewStatusRef.current = 'active'
@@ -582,7 +605,7 @@ export default function InterviewPage() {
                 ? 'Navigation away from the assessment tab is strictly prohibited.'
                 : 'Attention lost from the assessment window. Please focus on the test.'
 
-            toast.error(`Proctoring Warning: ${toastMsg}`, {
+            toast.error(`Session Warning: ${toastMsg}`, {
                 duration: 6000,
                 position: 'top-center',
             })
@@ -667,7 +690,7 @@ export default function InterviewPage() {
                     ? 'Navigation away from the assessment tab is strictly prohibited.'
                     : 'Attention lost from the assessment window. Please focus on the test.'
 
-                toast.error(`Proctoring Warning: ${toastMsg}`, { duration: 5000 })
+                toast.error(`Session Warning: ${toastMsg}`, { duration: 5000 })
                 setViolationModalType(violationType)
                 setViolationModalWarnings(newWarnings)
                 setShowViolationModal(true)
@@ -707,6 +730,71 @@ export default function InterviewPage() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [interviewId])
+
+    // Security Restrictions: Prevent right-click, F12, and other shortcuts
+    useEffect(() => {
+        const status = interviewStatusRef.current;
+        if (status !== 'active' && status !== 'aptitude' && status !== 'in_progress') return;
+
+        const handleContextMenu = (e: MouseEvent) => {
+            e.preventDefault();
+            toast.error("Right-click is disabled during the interview.", { id: 'security-context-menu' });
+        };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // F12
+            if (e.key === 'F12') {
+                e.preventDefault();
+                handleViolation("DevTools Attempt (F12)");
+            }
+            // Ctrl+Shift+I (DevTools)
+            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
+                e.preventDefault();
+                handleViolation("DevTools Attempt (Ctrl+Shift+I)");
+            }
+            // Ctrl+Shift+J (Console)
+            if (e.ctrlKey && e.shiftKey && (e.key === 'J' || e.key === 'j')) {
+                e.preventDefault();
+                handleViolation("DevTools Attempt (Ctrl+Shift+J)");
+            }
+            // Ctrl+U (View Source)
+            if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) {
+                e.preventDefault();
+                handleViolation("View Source Attempt (Ctrl+U)");
+            }
+            // Ctrl+Shift+C (Inspect Element)
+            if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+                e.preventDefault();
+                handleViolation("DevTools Attempt (Ctrl+Shift+C)");
+            }
+        };
+
+        window.addEventListener('contextmenu', handleContextMenu);
+        window.addEventListener('keydown', handleKeyDown);
+
+        // DevTools detection loop (Checking window dimension discrepancies)
+        const devToolsInterval = setInterval(() => {
+            if (interviewStatusRef.current !== 'active') return;
+            
+            const widthThreshold = 160;
+            const heightThreshold = 160;
+            
+            // If the outer window is significantly larger than the inner window, DevTools is likely open
+            const isDevToolsOpen = 
+                window.outerWidth - window.innerWidth > widthThreshold || 
+                window.outerHeight - window.innerHeight > heightThreshold;
+
+            if (isDevToolsOpen && document.fullscreenElement) {
+                 handleViolation("DevTools Detected (Resized)");
+            }
+        }, 3000);
+
+        return () => {
+            window.removeEventListener('contextmenu', handleContextMenu);
+            window.removeEventListener('keydown', handleKeyDown);
+            clearInterval(devToolsInterval);
+        };
+    }, [interviewStatus, handleViolation]);
 
     useEffect(() => {
         if (isCameraActive && streamRef.current && videoRef.current) {
@@ -956,11 +1044,11 @@ export default function InterviewPage() {
     }
 
     const startInterviewManual = async () => {
-        // Step 1: Try to init camera/mic - mandatory for entry
+        // Step 1: Try to init camera/mic - STRICTLY mandatory
         try {
             await initOverallRecording()
         } catch (err: any) {
-            console.error("Media recording unavailable:", err)
+            console.error("Media recording initialization failed:", err)
             toast.error("Camera and microphone access are strictly required to begin the interview. Please allow permissions and try again.", { duration: 6000 })
             return
         }
@@ -976,7 +1064,10 @@ export default function InterviewPage() {
         try {
             await APIClient.postWithRequestId(
                 `/api/interviews/${interviewId}/start`,
-                {},
+                {
+                    camera_active: isCameraActive,
+                    mic_active: isMicActive
+                },
                 `rims-${interviewId}-start`,
             )
             setInterviewStatus('active')
@@ -1159,38 +1250,38 @@ export default function InterviewPage() {
 
                         {/* Camera / Mic Status Card */}
                         <div className={`flex items-start gap-4 rounded-2xl px-5 py-4 border-2 transition-all ${
-                            isCameraActive
+                            isCameraActive && isMicActive
                                 ? 'bg-emerald-50/50 border-emerald-200'
                                 : 'bg-amber-50/50 border-amber-200'
                         }`}>
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                                isCameraActive ? 'bg-emerald-100' : 'bg-amber-100'
+                                isCameraActive && isMicActive ? 'bg-emerald-100' : 'bg-amber-100'
                             }`}>
-                                {isCameraActive
+                                {isCameraActive && isMicActive
                                     ? <Camera className="w-5 h-5 text-emerald-600" />
                                     : <CameraOff className="w-5 h-5 text-amber-600" />}
                             </div>
                             <div className="text-left flex-1">
                                 <div className="flex items-center gap-2 mb-1">
                                     <p className={`text-[10px] font-black uppercase tracking-widest ${
-                                        isCameraActive ? 'text-emerald-600' : 'text-amber-600'
+                                        isCameraActive && isMicActive ? 'text-emerald-600' : 'text-amber-600'
                                     }`}>
-                                        {isCameraActive ? 'Camera & Mic Ready' : 'Camera / Mic Not Detected'}
+                                        {isCameraActive && isMicActive ? 'Devices Ready' : 'Permissions Required'}
                                     </p>
-                                    {isCameraActive && (
+                                    {isCameraActive && isMicActive && (
                                         <span className="relative flex h-2 w-2">
                                             <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping"></span>
                                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                         </span>
                                     )}
                                 </div>
-                                {isCameraActive ? (
+                                {isCameraActive && isMicActive ? (
                                     <p className="text-xs text-emerald-700 font-semibold leading-relaxed">
                                         Your camera and microphone are active. Full proctoring is enabled for this session.
                                     </p>
                                 ) : (
                                     <p className="text-xs text-amber-700 font-semibold leading-relaxed">
-                                        Camera or microphone access was denied or unavailable. You can still take the test — voice and tab monitoring will be used. To enable full proctoring, allow browser camera permissions and refresh.
+                                        Camera and microphone access are <strong>strictly mandatory</strong>. Please allow browser permissions for both to begin the interview.
                                     </p>
                                 )}
                             </div>
@@ -1217,13 +1308,18 @@ export default function InterviewPage() {
                         {/* CTA */}
                         <Button
                             size="lg"
-                            className="w-full h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-lg shadow-xl shadow-blue-500/30 transition-all hover:-translate-y-0.5 active:scale-95"
+                            className="w-full h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-lg shadow-xl shadow-blue-500/30 transition-all hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                             onClick={startInterviewManual}
+                            disabled={!isCameraActive || !isMicActive}
                         >
                             <Play className="w-5 h-5 mr-2" /> START INTERVIEW
                         </Button>
-                        {!isCameraActive && (
-                            <p className="text-center text-xs text-slate-400 font-semibold">
+                        {(!isCameraActive || !isMicActive) && (
+                            <p className="text-center text-xs text-amber-600 font-bold animate-pulse">
+                                Please enable Camera & Mic to proceed
+                            </p>
+                        )}
+                    </div>
                                 Proceeding without camera — voice &amp; tab monitoring still active
                             </p>
                         )}
@@ -1444,7 +1540,7 @@ export default function InterviewPage() {
                 )}
 
                 {/* Face Detection Warning */}
-                {!isFaceDetected && interviewStatus === 'active' && (
+                {!isFaceDetected && interviewStatus === 'active' && isCameraActive && isMicActive && (
                     <div className="fixed inset-0 z-[400] bg-red-950/40 backdrop-blur-sm flex items-center justify-center p-6 pointer-events-none">
                         <div className="max-w-sm w-full bg-white rounded-3xl p-8 shadow-2xl border-4 border-red-500 animate-bounce flex flex-col items-center pointer-events-auto">
                             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 border border-red-100">
@@ -1453,6 +1549,41 @@ export default function InterviewPage() {
                             <h2 className="text-xl font-black text-red-600 mb-2 uppercase tracking-tight text-center">Face Not Detected</h2>
                             <p className="text-slate-600 font-bold text-center text-sm">
                                 Please ensure your face is clearly visible in the camera frame to avoid session termination.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Hardware Disconnected Modal (Blocking) */}
+                {(!isCameraActive || !isMicActive) && interviewStatus === 'active' && (
+                    <div className="fixed inset-0 z-[500] bg-slate-900/95 backdrop-blur-2xl flex items-center justify-center p-6 text-center">
+                        <div className="max-w-md w-full bg-white rounded-[3rem] p-12 shadow-2xl border-4 border-amber-500 flex flex-col items-center">
+                            <div className="w-24 h-24 bg-amber-50 rounded-full flex items-center justify-center mb-8 border-2 border-amber-100 animate-pulse">
+                                <ShieldAlert className="w-12 h-12 text-amber-500" />
+                            </div>
+                            <h2 className="text-3xl font-black text-slate-900 mb-4 uppercase tracking-tight">Hardware Disconnected</h2>
+                            <p className="text-slate-600 font-bold mb-8 leading-relaxed">
+                                Your <span className="text-amber-600">{!isCameraActive && !isMicActive ? 'Camera and Microphone' : !isCameraActive ? 'Camera' : 'Microphone'}</span> access has been lost. 
+                                Interview is paused. Please reconnect your devices and grant permissions to continue.
+                            </p>
+                            <div className="w-full space-y-4">
+                                <div className="flex items-center justify-between px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div className="flex items-center gap-3">
+                                        <Camera className={`w-5 h-5 ${isCameraActive ? 'text-emerald-500' : 'text-slate-300'}`} />
+                                        <span className="font-bold text-sm text-slate-700">Camera</span>
+                                    </div>
+                                    {isCameraActive ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />}
+                                </div>
+                                <div className="flex items-center justify-between px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div className="flex items-center gap-3">
+                                        <Mic className={`w-5 h-5 ${isMicActive ? 'text-emerald-500' : 'text-slate-300'}`} />
+                                        <span className="font-bold text-sm text-slate-700">Microphone</span>
+                                    </div>
+                                    {isMicActive ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />}
+                                </div>
+                            </div>
+                            <p className="mt-8 text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+                                Monitoring for reconnection...
                             </p>
                         </div>
                     </div>
@@ -1515,7 +1646,7 @@ export default function InterviewPage() {
 
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 pointer-events-none">
                             <span className="text-[8px] font-black text-white uppercase tracking-wider flex items-center gap-1">
-                                <Video className="w-2 h-2 animate-pulse" /> Live Proctoring
+                                <Video className="w-2 h-2 animate-pulse" /> Live Session
                             </span>
                         </div>
                     </div>
@@ -1542,7 +1673,7 @@ export default function InterviewPage() {
                 {/* Question Info Bar (Replacing Header) */}
                 <div className="h-20 flex items-center justify-between px-10 relative z-20">
                     <div className="flex items-center gap-4">
-                        <img src={companyLogo} alt="Logo" className="h-8 w-auto object-contain max-w-[140px]" />
+                        {/* Logo Removed */}
                         {!isFullscreen && interviewStatus === 'active' && (
                             <Button
                                 size="sm"
@@ -1556,25 +1687,7 @@ export default function InterviewPage() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {/* Locked Skill Badge */}
-                        {interviewData?.locked_skill && (
-                            <div className="bg-purple-50 border-2 border-purple-100 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-sm select-none">
-                                <Lock className="w-3.5 h-3.5 text-purple-500" />
-                                <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest leading-none">Focus Skill</span>
-                                <span className="text-xs font-black text-purple-700 uppercase tracking-tight">{interviewData.locked_skill}</span>
-                            </div>
-                        )}
-
-                        {/* Proctoring Status Indicator */}
-                        {interviewStatus === 'active' && (
-                            <div className="bg-white border-2 border-slate-100 px-4 py-2 rounded-2xl flex items-center gap-2.5 shadow-sm select-none">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Proctoring</span>
-                                <div className="flex gap-1.5 items-center">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200 animate-pulse" />
-                                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Active</span>
-                                </div>
-                            </div>
-                        )}
+                        {/* Focus Skill and Proctoring Badges Removed */}
 
                         <div className={`px-5 py-2 rounded-2xl shadow-xl font-black text-sm flex items-center gap-2 transition-all duration-500 border-2 ${timeLeft && timeLeft < 300 ? 'bg-red-500 border-red-400 text-white animate-pulse' : 'bg-white border-slate-100 text-slate-600'}`}>
                             <Clock className={`w-4 h-4 ${timeLeft && timeLeft < 300 ? 'animate-spin-slow' : ''}`} />
@@ -1736,7 +1849,7 @@ export default function InterviewPage() {
                                     </Button>
                                 </div>
 
-                                <p className="text-xs font-bold text-slate-400 italic">Answer each question and submit to move forward</p>
+                                <p className="text-xs font-bold text-slate-400 italic">Navigate freely. Answers save automatically on submit.</p>
 
                                 <div className="flex items-center gap-3">
                                     <Button
@@ -1818,7 +1931,7 @@ export default function InterviewPage() {
                             <ShieldAlert className="w-8 h-8" />
                         </div>
                         <div className="space-y-2">
-                            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Proctoring Warning</h2>
+                            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Session Warning</h2>
                             <p className="text-sm font-bold text-red-500 uppercase tracking-wider">
                                 {violationModalType === 'Fullscreen Exited'
                                     ? 'Fullscreen Exited'

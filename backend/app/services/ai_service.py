@@ -812,12 +812,17 @@ async def generate_interview_report(
     overall_score: float,
     primary_evaluated_skills: list = None,
     termination_reason: str | None = None,
+    aptitude_context: dict | None = None,
 ) -> dict:
     """Generate final interview evaluation report with AI analysis and retries."""
     
     # 1. Input Sanitization & Normalization
     skills_text = ", ".join(primary_evaluated_skills) if primary_evaluated_skills else "General"
     
+    aptitude_info = ""
+    if aptitude_context:
+        aptitude_info = f"Aptitude Score: {aptitude_context.get('score', 0)}/10 ({aptitude_context.get('status', 'N/A')})\n"
+
     qa_summary = ""
     for i, qa in enumerate(all_qa_pairs):
         q = qa.get("question", "N/A")
@@ -832,7 +837,8 @@ async def generate_interview_report(
     
     Job Role: {job_title}
     Skills Evaluated: {skills_text}
-    Raw Aggregate AI Score: {overall_score}/10
+    {aptitude_info}
+    First Level AI Score: {overall_score}/10
     {termination_clause}
 
     Interview Q&A History:

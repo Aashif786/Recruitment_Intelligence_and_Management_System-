@@ -117,39 +117,40 @@ def create_support_ticket(payload: dict, request: Request, db: Session = Depends
             detail="Too many support requests in a short period. Please try again shortly.",
         )
 
-    # Find all interviews for this email and verify the access key strictly belongs to one.
-    interviews = (
-        db.query(Interview)
-        .join(Application)
-        .filter(Application.candidate_email == email)
-        .options(
-            joinedload(Interview.application).joinedload(Application.job),
-            joinedload(Interview.report),
-        )
-        .order_by(Interview.created_at.desc())
-        .all()
-    )
-
     interview = None
     application = None
-    
-    # Try finding an interview first (standard flow)
-    
-    for inv in interviews:
-        try:
-            if inv.access_key_hash and verify_password(access_key, inv.access_key_hash):
-                interview = inv
-                application = inv.application
-                break
-        except Exception:
-            continue
 
-    # If no interview matched, try finding by offer_token (standard onboarding flow)
-    if not interview and not application:
-        application = db.query(Application).filter(
-            Application.candidate_email == email,
-            Application.offer_token == access_key # Candidates use their offer token as key
-        ).first()
+    # Try finding by offer_token first (standard onboarding flow)
+    # Candidates in the onboarding stage use their plain offer_token as their access key.
+    # Checking this first avoids executing slow bcrypt checks for historical interviews.
+    application = db.query(Application).filter(
+        Application.candidate_email == email,
+        Application.offer_token == access_key  # Candidates use their offer token as key
+    ).first()
+
+    if not application:
+        # Find all interviews for this email to verify if the access key belongs to one
+        interviews = (
+            db.query(Interview)
+            .join(Application)
+            .filter(Application.candidate_email == email)
+            .options(
+                joinedload(Interview.application).joinedload(Application.job),
+                joinedload(Interview.report),
+            )
+            .order_by(Interview.created_at.desc())
+            .all()
+        )
+        
+        # Cap the slow bcrypt verification loop to at most top 5 most recent interviews to prevent high latency
+        for inv in interviews[:5]:
+            try:
+                if inv.access_key_hash and verify_password(access_key, inv.access_key_hash):
+                    interview = inv
+                    application = inv.application
+                    break
+            except Exception:
+                continue
         
     if not application and not interview:
         log_json(

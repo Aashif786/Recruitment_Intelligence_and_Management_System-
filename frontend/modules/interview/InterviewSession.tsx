@@ -300,19 +300,21 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
       recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: selectedType || 'audio/webm' });
+        // Stop the stream tracks instantly so the browser mic indicator turns off immediately, preventing device locking
+        stream.getTracks().forEach(t => t.stop());
+        
         if (blob.size > 0) {
           setIsTranscribing(true);
           try {
             const formData = new FormData();
             formData.append('file', blob, 'recording.webm');
-            const res = await APIClient.postMultipart<{ text: string }>(`/api/interviews/${interviewId}/transcribe`, formData, `tr-${Date.now()}`, 30000);
+            const res = await APIClient.postMultipart<{ text: string }>(`/api/interviews/${interviewId}/transcribe`, formData, `tr-${Date.now()}`, 15000);
             if (res.text && transcriptionCallbackRef.current) transcriptionCallbackRef.current(res.text);
           } catch (e) {
              console.error('Transcription failed', e);
              toast.error('Voice transcription failed. You can type your response.');
           } finally { setIsTranscribing(false); }
         }
-        stream.getTracks().forEach(t => t.stop());
       };
       recorder.start();
       setIsListening(true);
@@ -333,10 +335,18 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
   useEffect(() => {
     if (!isStarted) return;
 
-    const setup = async () => {
+    async function setup() {
       try {
         if (activeStreamRef.current) {
-          activeStreamRef.current.getTracks().forEach(t => t.stop());
+          try {
+            activeStreamRef.current.getTracks().forEach(t => t.stop());
+          } catch (err) {
+            console.error('Failed to stop active tracks:', err);
+          }
+          activeStreamRef.current = null;
+        }
+        if (sessionVideoRef.current) {
+          sessionVideoRef.current.srcObject = null;
         }
 
         await tf.ready();
@@ -351,7 +361,19 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
           videoTrack.onmute = () => handleStrike('Camera feed disabled/muted');
-          videoTrack.onended = () => handleStrike('Camera hardware disconnected');
+          videoTrack.onended = () => {
+            handleStrike('Camera hardware disconnected');
+            handleDeviceChange();
+          };
+        }
+
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.onmute = () => handleStrike('Microphone feed disabled/muted');
+          audioTrack.onended = () => {
+            handleStrike('Microphone hardware disconnected');
+            handleDeviceChange();
+          };
         }
 
         // Initialize session video recorder
@@ -386,11 +408,22 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
         }, 3000);
       } catch (e) {
         console.error('Video setup failed', e);
+        // Ensure cleanup on failure
+        if (activeStreamRef.current) {
+          try {
+            activeStreamRef.current.getTracks().forEach(t => t.stop());
+          } catch (stopErr) {
+            console.error('Failed to stop tracks in catch:', stopErr);
+          }
+          activeStreamRef.current = null;
+        }
+        if (sessionVideoRef.current) {
+          sessionVideoRef.current.srcObject = null;
+        }
       }
-    };
-    setup();
+    }
 
-    const handleDeviceChange = async () => {
+    async function handleDeviceChange() {
       console.log('Media devices configuration changed');
       const hasActiveVideo = activeStreamRef.current && activeStreamRef.current.getVideoTracks().some(t => t.readyState === 'live');
       const hasActiveAudio = activeStreamRef.current && activeStreamRef.current.getAudioTracks().some(t => t.readyState === 'live');
@@ -398,7 +431,9 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
         toast.info('Media device updated. Re-acquiring camera and mic...');
         await setup();
       }
-    };
+    }
+
+    setup();
 
     navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
 
@@ -461,8 +496,8 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
           <CardContent className="px-12 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-3">Proctoring Active</h3>
-                <p className="text-sm text-slate-500 font-medium leading-relaxed">System will monitor your face and window focus. 4 strikes will terminate the session.</p>
+                <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-3">Session Secure</h3>
+                <p className="text-sm text-slate-500 font-medium leading-relaxed">System will monitor your window focus to ensure interview integrity.</p>
               </div>
               <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
                 <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-3">Session Recording</h3>
@@ -616,7 +651,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
         <div className="absolute top-3 left-3 flex gap-1.5">
           <div className={`px-2 py-1 rounded-lg backdrop-blur-md border text-[8px] font-black uppercase tracking-tighter flex items-center gap-1.5 ${isFaceDetected ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
             <div className={`w-1 h-1 rounded-full ${isFaceDetected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-            {isFaceDetected ? 'Live Proctor' : 'Sensor Alert'}
+            {isFaceDetected ? 'Live Session' : 'Sensor Alert'}
           </div>
         </div>
         {!isFaceDetected && (
