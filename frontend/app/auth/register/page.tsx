@@ -302,7 +302,7 @@ export default function RegisterPage() {
             >
               <Button
                 type="submit"
-                disabled={isSubmitting || isLoading}
+                disabled={isSubmitting || isLoading || passwordCriteriaCount < 4 || !agreedToTerms}
                 className="w-full h-12 bg-foreground hover:bg-foreground/90 text-background font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
               >
                 {isSubmitting ? (

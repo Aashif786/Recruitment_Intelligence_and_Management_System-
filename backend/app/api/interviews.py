@@ -1723,7 +1723,6 @@ async def submit_answer(
         if job and job.interview_mode in ["ai", "mixed"] and current_question.question_type != "aptitude":
             active_duration = get_ist_now() - to_naive_ist(interview.started_at)
             if active_duration > timedelta(seconds=45):
-                from app.domain.models import InterviewMonitoringEvent
                 from sqlalchemy import exists
                 has_events = db.query(exists().where(
                     InterviewMonitoringEvent.interview_id == interview_id

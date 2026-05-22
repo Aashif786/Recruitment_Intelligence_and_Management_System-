@@ -6,11 +6,12 @@ test.describe('Hiring Pipeline Module', () => {
     // Login as HR
     await page.goto('/calrims/auth/login/');
     await page.fill('input#email', 'hr_automated_test@example.com');
-    await page.fill('input#password', 'password123');
+    await page.fill('input#password', 'Password123!');
     await page.click('button[type="submit"]');
     
-    // Wait for dashboard to load
-    await expect(page).toHaveURL(/.*calrims\/dashboard\/hr/);
+    // Wait for dashboard to load (allow up to 30s for cookie set + SWR fetch)
+    await expect(page).toHaveURL(/.*calrims\/dashboard\/hr/, { timeout: 30000 });
+    await page.waitForLoadState('networkidle');
 
     // Log API responses for debugging
     page.on('response', async response => {
@@ -35,9 +36,9 @@ test.describe('Hiring Pipeline Module', () => {
     // 2. Search for a job (Optional but good for testing)
     await page.fill('input[placeholder="Search by job title or ID..."]', 'Software');
     
-    // 3. Open the first pipeline board
+    // 3. Open the first pipeline board (wait for SWR to load jobs)
     const openPipelineButton = page.locator('button:has-text("Open Pipeline")').first();
-    await expect(openPipelineButton).toBeVisible();
+    await expect(openPipelineButton).toBeVisible({ timeout: 15000 });
     await openPipelineButton.click();
     
     // Wait for the Kanban board to load
