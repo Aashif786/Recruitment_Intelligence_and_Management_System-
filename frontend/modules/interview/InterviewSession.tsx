@@ -64,6 +64,13 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
     return 0;
   });
   const sessionStartRef = useRef(Date.now());
+  // Shadow isStarted in a ref so handleStrike stays stable across isStarted changes
+  const isStartedRef = useRef(false);
+  useEffect(() => { isStartedRef.current = isStarted; }, [isStarted]);
+
+  // ── fullscreen state ──
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenGate, setShowFullscreenGate] = useState(false);
 
   // ── question state ──
   const [allQuestions, setAllQuestions] = useState<any[]>([]);
@@ -114,7 +121,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
   const terminationSentRef = useRef(false);
 
   const handleStrike = useCallback((reason: string) => {
-    if (!isStarted) return; // ignore strikes before session officially starts
+    if (!isStartedRef.current) return; // use ref — stable, no re-render dependency
     if (Date.now() - sessionStartRef.current < 15000) return; // ignore first 15s
 
     setFocusStrikes(prev => {
@@ -152,7 +159,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
       }
       return next;
     });
-  }, [interviewId, token, isStarted]);
+  }, [interviewId, token]); // NO isStarted dependency — uses isStartedRef instead
 
   // ─── VIDEO UPLOAD ──────────────────────────────────────────────────────────
   const uploadVideo = useCallback(async (blob: Blob) => {
@@ -608,13 +615,16 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
     
     initCamera();
 
+    // ── cleanup only runs on true component unmount, NOT on re-renders ──
+    const mountedStream = { ref: activeStreamRef };
     return () => {
-      // We only stop tracks if the component completely unmounts (leaving the interview)
-      if (activeStreamRef.current) {
-        activeStreamRef.current.getTracks().forEach(t => t.stop());
+      // Only stop tracks when the whole component unmounts (user leaves interview)
+      if (mountedStream.ref.current) {
+        mountedStream.ref.current.getTracks().forEach(t => t.stop());
+        console.log('[Camera] Stopped all tracks on component unmount.');
       }
     };
-  }, [handleStrike]); // Only run on mount, but depends on handleStrike
+  }, [handleStrike]); // handleStrike is now stable — doesn't change on isStarted
 
   // Synchronize camera stream to pre-start preview when loading completes
   useEffect(() => {
@@ -635,6 +645,30 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
       }
     }
   }, [isStarted]);
+
+  // Fullscreen tracking
+  useEffect(() => {
+    const onFSChange = () => {
+      const isFull = !!document.fullscreenElement;
+      setIsFullscreen(isFull);
+      // If session is running and user exits fullscreen, show the gate overlay
+      if (!isFull && isStartedRef.current) {
+        setShowFullscreenGate(true);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFSChange);
+    return () => document.removeEventListener('fullscreenchange', onFSChange);
+  }, []);
+
+  const enterFullscreen = async () => {
+    try {
+      await document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+      setShowFullscreenGate(false);
+    } catch (e) {
+      console.error('Fullscreen request failed:', e);
+    }
+  };
 
   // Double-enforcement check to prevent bypass / direct deep links without device tests
   useEffect(() => {
@@ -979,6 +1013,15 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
                     }
                     return;
                   }
+                  // Request fullscreen before starting interview
+                  try {
+                    await document.documentElement.requestFullscreen();
+                    setIsFullscreen(true);
+                  } catch (e) {
+                    // Fullscreen failed — show gate instead of starting
+                    setShowFullscreenGate(true);
+                    return;
+                  }
                   sessionStartRef.current = Date.now();
                   setIsStarted(true);
                 }}
@@ -1147,6 +1190,31 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
           </div>
         )}
       </div>
+
+      {/* ── FULLSCREEN GATE OVERLAY ──────────────────────────────────────────────── */}
+      {showFullscreenGate && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-200">
+          <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="h-1.5 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 w-full" />
+            <div className="p-10 text-center">
+              <div className="w-20 h-20 rounded-full bg-amber-500/10 border-2 border-amber-500/20 flex items-center justify-center mx-auto mb-6">
+                <ShieldAlert className="w-10 h-10 text-amber-500" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-3">Fullscreen Required</h2>
+              <p className="text-slate-500 font-medium text-sm leading-relaxed mb-8">
+                This assessment must be taken in <strong>fullscreen mode</strong> to maintain exam integrity.
+                You cannot proceed until fullscreen is active.
+              </p>
+              <Button
+                className="w-full h-14 rounded-2xl font-black text-base shadow-xl shadow-amber-500/20 bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-2"
+                onClick={enterFullscreen}
+              >
+                Re-enter Fullscreen to Continue
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── ALL DONE MODAL ────────────────────────────────────────────────────── */}
       {showAllDoneModal && (
