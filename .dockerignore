@@ -54,3 +54,24 @@ Thumbs.db
 *.wav
 *.mp3
 *.webm
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+**/*.db
+**/*.sqlite
+
+# Scratch files and temporary folders
+**/scratch/
+**/tmp/
+backend/scratch/
+backend/tmp/
+frontend/scratch/
+
+# Workbooks / Excel
+*.xlsx
+*.xls
+CALRIMS.xlsx

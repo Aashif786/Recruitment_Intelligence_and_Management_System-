@@ -10,7 +10,7 @@ const nextConfig = {
     buildActivityPosition: 'bottom-right',
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
     unoptimized: true,

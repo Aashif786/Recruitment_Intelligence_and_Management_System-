@@ -35,12 +35,20 @@ def reset_user_password(email: str, new_password: str):
         db.close()
 
 if __name__ == "__main__":
-    target_email = "caldiminternship@gmail.com"
-    target_password = "AdminPassword@2026"
+    from app.core.config import get_settings
+    settings = get_settings()
+    
+    target_email = settings.super_admin_email or ""
+    target_password = settings.super_admin_password or ""
     
     if len(sys.argv) > 1:
         target_email = sys.argv[1]
     if len(sys.argv) > 2:
         target_password = sys.argv[2]
+        
+    if not target_email or not target_password:
+        print("Usage: python reset_admin.py <email> <password>")
+        print("Or configure SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD in environment.")
+        sys.exit(1)
         
     reset_user_password(target_email, target_password)

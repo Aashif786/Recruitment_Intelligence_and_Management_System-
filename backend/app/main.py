@@ -370,13 +370,14 @@ async def imap_polling_loop():
             
             if auto_sync_enabled:
                 # Fetch automatically using settings
-                imap_email = settings_dict.get("imap_email") or settings.imap_email or 'caldiminternship@gmail.com'
-                imap_password = settings_dict.get("imap_password") or settings.imap_password or 'jaesbucnsfnlediv'
+                imap_email = settings_dict.get("imap_email") or settings.imap_email or ''
+                imap_password = settings_dict.get("imap_password") or settings.imap_password or ''
 
-                if settings.env == "production" and imap_email == 'caldiminternship@gmail.com':
-                    logger.warning("SECURITY WARNING: Using default hardcoded IMAP credentials in production. Configure IMAP_EMAIL and IMAP_PASSWORD.")
+                if imap_email and imap_password:
+                    fetch_resume_attachments(db, imap_email, imap_password)
+                else:
+                    logger.info("IMAP auto-sync skipped: IMAP credentials are not configured.")
 
-                fetch_resume_attachments(db, imap_email, imap_password)
                 from app.services.email_ingestion_service import run_batch_resume_processing
                 await run_batch_resume_processing(db)
             

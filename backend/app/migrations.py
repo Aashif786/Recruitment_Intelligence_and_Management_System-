@@ -288,12 +288,15 @@ def run_startup_migrations(engine: Engine):
                 # Promote specific user to super_admin
                 from app.core.config import get_settings
                 settings = get_settings()
-                admin_email = (settings.super_admin_email or 'caldiminternship@gmail.com').lower().strip()
-                conn.execute(text("""
-                    UPDATE users 
-                    SET role = 'super_admin', approval_status = 'approved'
-                    WHERE email = :email
-                """), {"email": admin_email})
+                admin_email = (settings.super_admin_email or '').lower().strip()
+                if admin_email:
+                    conn.execute(text("""
+                        UPDATE users 
+                        SET role = 'super_admin', approval_status = 'approved'
+                        WHERE email = :email
+                    """), {"email": admin_email})
+                else:
+                    logger.warning("No super_admin_email configured. Skipping database super_admin role promotion.")
                 
                 # Ensure existing staff are approved
                 conn.execute(text("""

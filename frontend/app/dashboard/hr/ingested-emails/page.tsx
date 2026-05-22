@@ -87,9 +87,9 @@ export default function IngestedEmailsPage() {
     const [isAssigning, setIsAssigning] = useState(false)
     const [isSavingSettings, setIsSavingSettings] = useState(false)
     
-    // IMAP Sync credentials (defaults to verified credentials)
-    const [imapUser, setImapUser] = useState('caldiminternship@gmail.com')
-    const [imapPass, setImapPass] = useState('jaesbucnsfnlediv')
+    // IMAP Sync credentials
+    const [imapUser, setImapUser] = useState('')
+    const [imapPass, setImapPass] = useState('')
     const [autoSyncEnabled, setAutoSyncEnabled] = useState(false)
     const [showCredentials, setShowCredentials] = useState(false)
 
