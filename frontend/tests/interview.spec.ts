@@ -39,6 +39,19 @@ test.describe('Expert Assessment - Interview Flow', () => {
 
     test.beforeEach(async ({ page }) => {
         await page.addInitScript(HEADLESS_STUBS);
+        
+        page.on('response', async response => {
+            if (response.url().includes('/api/')) {
+                const status = response.status();
+                const url = response.url();
+                try {
+                    const body = await response.json();
+                    console.log(`API Response: ${status} ${url}`, JSON.stringify(body).slice(0, 500));
+                } catch (e) {
+                    console.log(`API Response: ${status} ${url} (not json)`);
+                }
+            }
+        });
     });
 
     // ------------------------------------------------------------------
@@ -46,7 +59,7 @@ test.describe('Expert Assessment - Interview Flow', () => {
     // ------------------------------------------------------------------
     test('should load interview pre-start screen and verify security UI', async ({ page }) => {
         test.setTimeout(90000);
-        await page.goto(INTERVIEW_URL, { waitUntil: 'networkidle' });
+        await page.goto(INTERVIEW_URL, { waitUntil: 'load' });
 
         // Wait for pre-start OR board (if session was previously started)
         await expect(
@@ -71,7 +84,7 @@ test.describe('Expert Assessment - Interview Flow', () => {
     // ------------------------------------------------------------------
     test('should transition away from pre-start screen after Enter click', async ({ page }) => {
         test.setTimeout(90000);
-        await page.goto(INTERVIEW_URL, { waitUntil: 'networkidle' });
+        await page.goto(INTERVIEW_URL, { waitUntil: 'load' });
 
         // Wait for pre-start screen
         const preStart = page.getByText(/Ready to Begin\?/i);
@@ -115,7 +128,7 @@ test.describe('Expert Assessment - Interview Flow', () => {
     // TEST 3: Access form rejects invalid keys
     // ------------------------------------------------------------------
     test('should validate interview access form rejects invalid keys', async ({ page }) => {
-        await page.goto('/calrims/interview/access/', { waitUntil: 'networkidle' });
+        await page.goto('/calrims/interview/access/', { waitUntil: 'load' });
         await expect(page.getByText('Interview Access')).toBeVisible({ timeout: 10000 });
 
         await page.locator('input#email').fill('nonexistent@test.com');
@@ -128,5 +141,21 @@ test.describe('Expert Assessment - Interview Flow', () => {
                 .or(page.getByText(/invalid/i))
         ).toBeVisible({ timeout: 10000 });
         console.log('Invalid key correctly rejected.');
+    });
+
+    // ------------------------------------------------------------------
+    // TEST 4: Fail-fast on invalid token in live interview page
+    // ------------------------------------------------------------------
+    test('should fail fast on live interview page when token is invalid', async ({ page }) => {
+        await page.goto(`/calrims/interview/live/${SESSION_ID}?token=invalid_token_format_xyz`, { waitUntil: 'load' });
+
+        // The page should quickly fail and display the connection/credentials error
+        await expect(
+            page.locator('text=connecting to the interview server')
+                .or(page.locator('text=credentials'))
+                .or(page.locator('text=Forbidden'))
+                .or(page.locator('text=Request failed'))
+        ).toBeVisible({ timeout: 15000 });
+        console.log('Fail-fast on invalid token successfully verified.');
     });
 });

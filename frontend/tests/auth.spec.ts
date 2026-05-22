@@ -1,23 +1,38 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Authentication Flow', () => {
-  test('Should block weak passwords during registration', async ({ page }) => {
+  test('Should block weak passwords and enforce Terms of Service agreement during registration', async ({ page }) => {
     // Use the full basePath URL since Next.js redirects /auth/register -> /calrims/auth/register/
     await page.goto('/calrims/auth/register/');
 
-    // Wait for page to fully load (SWR/settings may take a moment)
+    // Wait for page to fully load
     await page.waitForLoadState('networkidle');
 
-    await page.fill('input[type="email"]', 'automated_test@domain.com');
-    await page.fill('input[type="password"]', 'weak');
-
-    // The UI should display strength meter as Weak
-    const strengthMeter = page.locator('text=Weak');
-    await expect(strengthMeter).toBeVisible({ timeout: 5000 });
-
-    // The "Create Account" button should be disabled when password is weak (< 4 criteria)
     const submitButton = page.locator('button:has-text("Create Account")');
-    await expect(submitButton).toBeDisabled({ timeout: 5000 });
+    
+    // 1. Initial State: Button should be disabled (empty inputs)
+    await expect(submitButton).toBeDisabled();
+
+    // 2. Fill weak password: Strength meter should be Weak, button disabled
+    await page.fill('input[type="email"]', 'automated_test@domain.com');
+    await page.fill('input#password', 'weak');
+    await page.fill('input#confirmPassword', 'weak');
+    
+    const weakMeter = page.locator('text=Weak');
+    await expect(weakMeter).toBeVisible({ timeout: 5000 });
+    await expect(submitButton).toBeDisabled();
+
+    // 3. Fill strong password but leave Terms unchecked: Button should still be disabled
+    await page.fill('input#password', 'StrongPass123!');
+    await page.fill('input#confirmPassword', 'StrongPass123!');
+    
+    const strongMeter = page.locator('text=Strong');
+    await expect(strongMeter).toBeVisible({ timeout: 5000 });
+    await expect(submitButton).toBeDisabled(); // disabled because Terms not checked
+
+    // 4. Click the Terms checkbox: Button should become enabled
+    await page.click('#terms-checkbox');
+    await expect(submitButton).toBeEnabled();
   });
 
   test('Should redirect unauthenticated users away from HR dashboard to login', async ({ page }) => {

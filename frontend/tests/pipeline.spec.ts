@@ -11,7 +11,7 @@ test.describe('Hiring Pipeline Module', () => {
     
     // Wait for dashboard to load (allow up to 30s for cookie set + SWR fetch)
     await expect(page).toHaveURL(/.*calrims\/dashboard\/hr/, { timeout: 30000 });
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Log API responses for debugging
     page.on('response', async response => {

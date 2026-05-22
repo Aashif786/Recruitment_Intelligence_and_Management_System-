@@ -36,7 +36,7 @@ async function apiFetch(path: string, token: string, opts: RequestInit = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Request failed');
+    throw new Error(err.detail || err.error || 'Request failed');
   }
   return res.json();
 }
@@ -264,6 +264,23 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
           setIsLoading(false);
         }
       } catch (e: any) {
+        const errorMsg = e.message || '';
+        const isPermanentError = 
+          errorMsg.includes('credentials') || 
+          errorMsg.includes('required') || 
+          errorMsg.includes('not found') || 
+          errorMsg.includes('completed') || 
+          errorMsg.includes('terminated') || 
+          errorMsg.includes('no longer active') || 
+          errorMsg.includes('expired') ||
+          errorMsg.includes('mismatch');
+
+        if (isPermanentError) {
+          setPollingError(errorMsg);
+          setIsLoading(false);
+          return;
+        }
+
         pollCount += 1;
         if (pollCount >= maxPolls) {
           setPollingError("An error occurred while connecting to the interview server. Please check your connection and retry.");

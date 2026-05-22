@@ -11,7 +11,8 @@ const baseURL =
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: false,
+  workers: 1,
   retries: 0,
   use: {
     baseURL,
