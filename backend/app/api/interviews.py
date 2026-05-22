@@ -2163,6 +2163,61 @@ async def complete_aptitude(
 
 
 
+@router.post("/{interview_id}/fail-device-test")
+async def fail_device_test(
+    interview_id: int,
+    background_tasks: BackgroundTasks,
+    data: dict = Body(...),
+    interview_session: Interview = Depends(get_current_interview_any_status),
+    db: Session = Depends(get_db),
+):
+    """
+    Invalidates access keys and deactivates the session immediately if a candidate
+    fails or attempts to bypass device hardware verification.
+    """
+    if interview_session.id != interview_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    interview = db.query(Interview).filter(
+        Interview.id == interview_id
+    ).with_for_update().first()
+
+    if not interview:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+
+    reason = (data.get("reason") or "").strip() or "Failed device hardware verification"
+    logger.warning(f"DEVICE_TEST_VIOLATION: Terminating interview {interview_id}. Reason: {reason}")
+
+    # 1. Clear access key hash completely to make it permanently invalid
+    interview.access_key_hash = None
+
+    # 2. Terminate interview session state
+    _set_interview_status(interview, "terminated")
+    interview.interview_stage = STAGE_COMPLETED
+    interview.ended_at = get_ist_now()
+
+    # 3. Transition candidate state machine to REJECT
+    try:
+        from app.services.state_machine import CandidateStateMachine, TransitionAction
+        if interview.application:
+            fsm = CandidateStateMachine(db)
+            fsm.transition(
+                interview.application,
+                TransitionAction.REJECT,
+                notes=f"Interview auto-terminated by proctoring system. Reason: {reason}",
+            )
+    except Exception as fsm_err:
+        logger.error(f"FSM transition failed on device test violation: {fsm_err}")
+
+    db.commit()
+
+    if background_tasks:
+        background_tasks.add_task(_finalize_interview_and_report, interview_id)
+
+    return {"ok": True, "terminated": True, "access_key_invalidated": True, "reason": reason}
+
+
+
 @router.post("/{interview_id}/security-violation")
 async def report_security_violation(
     interview_id: int,
