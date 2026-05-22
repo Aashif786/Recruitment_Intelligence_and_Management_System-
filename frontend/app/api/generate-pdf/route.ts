@@ -46,9 +46,14 @@ export async function POST(req: NextRequest) {
     `
 
     // Set content and wait for network to be idle (important for fonts/images from external URLs)
-    await page.setContent(styledHtml, {
-      waitUntil: "networkidle0",
-    })
+    try {
+      await page.setContent(styledHtml, {
+        waitUntil: "networkidle2",
+        timeout: 10000, // 10-second limit to prevent hanging on hot-reload/WS connections
+      })
+    } catch (loadError: any) {
+      console.warn("Puppeteer content loading timed out, proceeding to generate PDF anyway:", loadError.message)
+    }
 
     // Generate PDF - Respect CSS page size
     const pdfBuffer = await page.pdf({
