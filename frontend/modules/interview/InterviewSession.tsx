@@ -592,36 +592,102 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
     }
 
     let vRecorder: MediaRecorder | null = null;
-    try {
-      const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
-      let selectedType = '';
-      for (const t of types) { if (MediaRecorder.isTypeSupported(t)) { selectedType = t; break; } }
-      vRecorder = new MediaRecorder(stream, selectedType ? { mimeType: selectedType } : undefined);
-    } catch (e) {
-      console.warn("Failed to create MediaRecorder with types, trying default option:", e);
-      try {
-        vRecorder = new MediaRecorder(stream);
-      } catch (err) {
-        console.error("Failed to create default MediaRecorder:", err);
+    let recordingStarted = false;
+
+    // Helper to start MediaRecorder on a stream with a set of mimetypes
+    const tryStartRecorder = (mediaStream: MediaStream, mimeTypes: string[]): { recorder: MediaRecorder | null, started: boolean } => {
+      let recorderInstance: MediaRecorder | null = null;
+      let isStarted = false;
+      
+      // Try mimetypes in order of preference
+      for (const mime of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mime)) {
+          try {
+            recorderInstance = new MediaRecorder(mediaStream, { mimeType: mime });
+            videoChunksRef.current = [];
+            recorderInstance.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
+            recorderInstance.onstop = () => {
+              const blob = new Blob(videoChunksRef.current, { type: mime || 'video/webm' });
+              uploadVideo(blob);
+            };
+            recorderInstance.start(10000);
+            isStarted = true;
+            console.log(`Successfully started MediaRecorder with mimeType: ${mime}`);
+            break;
+          } catch (err) {
+            console.warn(`Failed to start MediaRecorder with mimeType: ${mime}, trying next...`, err);
+            recorderInstance = null;
+          }
+        }
+      }
+
+      // Fallback to default options if preferred mimetypes failed
+      if (!isStarted) {
+        try {
+          recorderInstance = new MediaRecorder(mediaStream);
+          videoChunksRef.current = [];
+          recorderInstance.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
+          recorderInstance.onstop = () => {
+            const blob = new Blob(videoChunksRef.current, { type: recorderInstance?.mimeType || 'video/webm' });
+            uploadVideo(blob);
+          };
+          recorderInstance.start(10000);
+          isStarted = true;
+          console.log("Successfully started MediaRecorder with default settings");
+        } catch (err) {
+          console.error("Failed to start MediaRecorder with default settings:", err);
+          recorderInstance = null;
+        }
+      }
+
+      return { recorder: recorderInstance, started: isStarted };
+    };
+
+    // Step 1: Try recording combined audio and video tracks
+    const comboMimeTypes = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=h264,opus',
+      'video/webm',
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4'
+    ];
+    
+    console.log("Attempting combined audio and video session recording...");
+    const attempt1 = tryStartRecorder(stream, comboMimeTypes);
+    
+    if (attempt1.started && attempt1.recorder) {
+      vRecorder = attempt1.recorder;
+      recordingStarted = true;
+    } else {
+      // Step 2: Fallback to video-only track recording to bypass hardware/codec/mimetype mismatches
+      console.warn("Combined recording failed to start. Falling back to video-only stream...");
+      const videoTracks = stream.getVideoTracks();
+      if (videoTracks.length > 0) {
+        const videoOnlyStream = new MediaStream(videoTracks);
+        const videoOnlyMimeTypes = [
+          'video/webm;codecs=vp9',
+          'video/webm;codecs=vp8',
+          'video/webm;codecs=h264',
+          'video/webm',
+          'video/mp4;codecs=avc1.42E01E',
+          'video/mp4'
+        ];
+        const attempt2 = tryStartRecorder(videoOnlyStream, videoOnlyMimeTypes);
+        if (attempt2.started && attempt2.recorder) {
+          vRecorder = attempt2.recorder;
+          recordingStarted = true;
+        }
       }
     }
 
-    if (vRecorder) {
+    if (vRecorder && recordingStarted) {
       videoRecorderRef.current = vRecorder;
-      videoChunksRef.current = [];
-      vRecorder.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
-      vRecorder.onstop = () => {
-        const blob = new Blob(videoChunksRef.current, { type: vRecorder?.mimeType || 'video/webm' });
-        uploadVideo(blob);
-      };
-      try {
-        vRecorder.start(10000); // chunk every 10s just in case
-      } catch (startErr) {
-        console.error("Failed to start MediaRecorder:", startErr);
-        toast.error("Video recording could not be started, but your interview session is safe to continue.", {
-          description: "Webcam monitoring and proctoring remain fully active."
-        });
-      }
+    } else {
+      console.error("All MediaRecorder attempts failed. Proctoring is active but video recording is offline.");
+      toast.error("Video recording could not be started, but your interview session is safe to continue.", {
+        description: "Webcam monitoring and proctoring remain fully active."
+      });
     }
 
     if (faceCheckIntervalRef.current) clearInterval(faceCheckIntervalRef.current);
