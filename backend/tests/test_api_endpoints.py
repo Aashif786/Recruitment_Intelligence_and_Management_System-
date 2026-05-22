@@ -349,3 +349,12 @@ class TestPaginationParameters:
     def test_applications_pagination_params_accepted(self, client, hr_auth_headers):
         response = client.get("/api/applications?page=1&size=10", headers=hr_auth_headers)
         assert response.status_code == 200
+
+    def test_applications_limit_parameter_bounds(self, client, hr_auth_headers):
+        # limit=1000 should be accepted successfully
+        response_1000 = client.get("/api/applications?limit=1000", headers=hr_auth_headers)
+        assert response_1000.status_code == 200
+        
+        # limit=1001 should fail FastAPI/Pydantic validation with 422
+        response_1001 = client.get("/api/applications?limit=1001", headers=hr_auth_headers)
+        assert response_1001.status_code == 422
