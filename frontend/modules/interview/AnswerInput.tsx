@@ -21,6 +21,7 @@ interface AnswerInputProps {
     options?: string[];
     initialValue?: string | null;
     isSubmitted?: boolean;
+    questionId?: number;
 }
 
 
@@ -40,6 +41,7 @@ export default function AnswerInput({
     options = [],
     initialValue = '',
     isSubmitted = false,
+    questionId,
 }: AnswerInputProps) {
     const [text, setText] = useState('');
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -64,7 +66,7 @@ export default function AnswerInput({
             setSelectedOption(null);
             setText(initialValue || '');
         }
-    }, [initialValue, isSubmitted]); // Only update when initialValue changes, avoiding resets on options re-render
+    }, [questionId, initialValue, isSubmitted]); // Reset state when questionId, initialValue or isSubmitted changes
 
     const handleTranscriptionResult = (transcribedText: string) => {
         setText((prev) => {

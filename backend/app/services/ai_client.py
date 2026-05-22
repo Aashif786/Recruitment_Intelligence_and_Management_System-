@@ -97,8 +97,22 @@ class AIClient:
             logger.debug("AI generate ok", extra={"elapsed_ms": elapsed_ms, "len": len(content)})
             return content
         except Exception as e:
+            logger.error(f"AI error with model {model}: {e}")
+            # Self-healing fallback to lightweight model
+            fallback_model = "llama-3.1-8b-instant"
+            if model != fallback_model:
+                logger.warning(f"Attempting self-healing fallback to lightweight model: {fallback_model}")
+                try:
+                    raw = await self._generate_with_retry(prompt, system_instr, fallback_model)
+                    if raw is not None and str(raw).strip():
+                        content = sanitize_content(str(raw).strip())
+                        logger.info("Self-healing fallback successful.")
+                        return content
+                except Exception as fallback_err:
+                    logger.error(f"Fallback model also failed: {fallback_err}")
+            
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
-            logger.error(f"AI Final Failure after retries: {e}", extra={"elapsed_ms": elapsed_ms})
+            logger.error(f"AI Final Failure: {e}", extra={"elapsed_ms": elapsed_ms})
             return "AI_DISABLED"
 
 # Singleton instance to be imported globally

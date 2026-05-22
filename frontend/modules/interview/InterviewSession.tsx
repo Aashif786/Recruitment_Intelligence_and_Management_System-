@@ -67,6 +67,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
   const [isStarted, setIsStarted] = useState(false);  // candidate clicked start
   const [isReady, setIsReady] = useState(false);       // questions loaded
   const [isLoading, setIsLoading] = useState(true);    // first load spinner
+  const [isQuestionSwapping, setIsQuestionSwapping] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [isTerminated, setIsTerminated] = useState(false);
   const [isDeviceTestSuccess, setIsDeviceTestSuccess] = useState(false);
@@ -106,6 +107,25 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
   } | null>(null);
   const [completedQuestions, setCompletedQuestions] = useState<number[]>([]);
   const [incorrectQuestions, setIncorrectQuestions] = useState<number[]>([]);
+  const [visitedQuestions, setVisitedQuestions] = useState<number[]>([]);
+  const skippedQuestions = React.useMemo(() => {
+    return visitedQuestions.filter(qNum => 
+      !completedQuestions.includes(qNum) && qNum !== currentQuestionNumber
+    );
+  }, [visitedQuestions, completedQuestions, currentQuestionNumber]);
+
+  // Automatically track visited questions as they are viewed or when currentQuestionNumber updates
+  useEffect(() => {
+    if (currentQuestionNumber) {
+      setVisitedQuestions(prev => {
+        const nextVisited = new Set([...prev]);
+        for (let i = 1; i <= currentQuestionNumber; i++) {
+          nextVisited.add(i);
+        }
+        return Array.from(nextVisited);
+      });
+    }
+  }, [currentQuestionNumber]);
   const [latestFeedback, setLatestFeedback] = useState<{ score: number; text: string } | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
@@ -511,9 +531,9 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
       toast.warning('Please complete all questions in the current section first.');
       return;
     }
-    setIsLoading(true);
+    setIsQuestionSwapping(true);
     await loadCurrentQuestion(num);
-    setIsLoading(false);
+    setIsQuestionSwapping(false);
   }, [totalQuestions, isEvaluating, loadCurrentQuestion, allQuestions, isQuestionLocked]);
 
   const handleNext = () => {
@@ -1146,6 +1166,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
             currentQuestion={currentQuestionNumber}
             completedQuestions={completedQuestions}
             incorrectQuestions={incorrectQuestions}
+            skippedQuestions={skippedQuestions}
             onSelectQuestion={jumpToQuestion}
             strikes={focusStrikes}
             allQuestions={allQuestions}
@@ -1194,7 +1215,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
                return (
                  <QuestionPanel
                    question={currentQuestion}
-                   isLoading={!currentQuestion || isEvaluating}
+                   isLoading={!currentQuestion || isEvaluating || isQuestionSwapping}
                    currentQuestionNumber={relNum}
                  />
                );
@@ -1204,7 +1225,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
               onSubmit={handleSubmitAnswer}
               onPrev={([...allQuestions].sort((a,b) => a.question_number - b.question_number)[0]?.question_number < currentQuestionNumber) ? handlePrev : undefined}
               onNext={([...allQuestions].sort((a,b) => b.question_number - a.question_number)[0]?.question_number > currentQuestionNumber) ? handleNext : undefined}
-              disabled={!currentQuestion || isEvaluating}
+              disabled={!currentQuestion || isEvaluating || isQuestionSwapping}
               isEvaluating={isEvaluating}
               interviewId={interviewId}
               isListening={isListening}
@@ -1216,6 +1237,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
               options={currentQuestion?.options}
               initialValue={currentQuestion?.answer_text}
               isSubmitted={completedQuestions.includes(currentQuestionNumber)}
+              questionId={currentQuestion?.id}
             />
 
             {/* Status bar */}

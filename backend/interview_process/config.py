@@ -21,7 +21,7 @@ if not OPENROUTER_API_KEY:
     print("CRITICAL WARNING: GROQ_API_KEY is missing. AI features will fail.")
 
 OPENROUTER_BASE_URL = "https://api.groq.com/openai/v1"
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Interview settings
 MAX_QUESTIONS = 20

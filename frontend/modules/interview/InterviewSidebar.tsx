@@ -9,11 +9,12 @@ interface SidebarSectionProps {
     startIndex: number;
     completed: number[];
     incorrect: number[];
+    skipped: number[];
     onSelect: (index: number) => void;
     isLocked: boolean;
 }
 
-const SidebarSection = ({ title, count, current, startIndex, completed, incorrect, onSelect, isLocked }: SidebarSectionProps) => {
+const SidebarSection = ({ title, count, current, startIndex, completed, incorrect, skipped, onSelect, isLocked }: SidebarSectionProps) => {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center px-1">
@@ -25,6 +26,7 @@ const SidebarSection = ({ title, count, current, startIndex, completed, incorrec
                     const globalIndex = startIndex + i;
                     const isCompleted = completed.includes(globalIndex);
                     const isIncorrect = incorrect.includes(globalIndex);
+                    const isSkipped = skipped.includes(globalIndex);
                     const isCurrent = current === globalIndex;
 
                     let bgColor = "bg-white border-slate-200 text-slate-400";
@@ -35,7 +37,9 @@ const SidebarSection = ({ title, count, current, startIndex, completed, incorrec
                     } else if (isIncorrect) {
                         bgColor = "bg-red-500 border-red-500 text-white";
                     } else if (isCompleted) {
-                        bgColor = "bg-green-500 border-green-500 text-white";
+                        bgColor = "bg-green-500 border-green-500 text-white font-bold";
+                    } else if (isSkipped) {
+                        bgColor = "bg-amber-500 border-amber-500 text-white font-bold";
                     }
 
                     return (
@@ -58,6 +62,7 @@ interface InterviewSidebarProps {
     currentQuestion: number;
     completedQuestions: number[];
     incorrectQuestions: number[];
+    skippedQuestions: number[];
     onSelectQuestion: (index: number) => void;
     strikes: number;
     allQuestions: any[];
@@ -67,6 +72,7 @@ export default function InterviewSidebar({
     currentQuestion, 
     completedQuestions, 
     incorrectQuestions, 
+    skippedQuestions = [],
     onSelectQuestion,
     strikes,
     allQuestions = []
@@ -128,6 +134,29 @@ export default function InterviewSidebar({
                 </p>
             </div>
 
+            {/* Question Status Legend */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/80 space-y-2.5">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Question Status Guide</span>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px] font-bold text-slate-600">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-sm" />
+                        <span>Active</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm" />
+                        <span>Completed</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm" />
+                        <span>Skipped</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-white border border-slate-200 shadow-sm" />
+                        <span>Pending</span>
+                    </div>
+                </div>
+            </div>
+
             {displayOrder.map(type => {
                 const group = groupedQuestions[type] || groupedQuestions[type.charAt(0).toUpperCase() + type.slice(1)];
                 if (!group || group.length === 0) return null;
@@ -144,6 +173,7 @@ export default function InterviewSidebar({
                         startIndex={startIndex}
                         completed={completedQuestions.filter(q => q >= startIndex && q < startIndex + group.length)}
                         incorrect={incorrectQuestions.filter(q => q >= startIndex && q < startIndex + group.length)}
+                        skipped={skippedQuestions.filter(q => q >= startIndex && q < startIndex + group.length)}
                         onSelect={onSelectQuestion}
                         isLocked={isSectionLocked}
                     />
