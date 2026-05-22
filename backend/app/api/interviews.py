@@ -1757,6 +1757,35 @@ async def submit_answer(
                 )
         
 
+        # Resolve answer text early for idempotency check and saving
+        stored_answer_text = data.answer_text
+        if (current_question.question_type or "").lower() == "aptitude" and current_question.options:
+            try:
+                options = json.loads(current_question.options)
+                if isinstance(options, list) and len(options) > 0:
+                    submitted_val = data.answer_text.strip().upper()
+                    resolved_idx = -1
+                    
+                    # Case 1: Simple digit index (0, 1, 2...)
+                    if submitted_val.isdigit():
+                        resolved_idx = int(submitted_val)
+                    # Case 2: Letter index (A, B, C...)
+                    elif len(submitted_val) == 1 and 'A' <= submitted_val <= 'Z':
+                        resolved_idx = ord(submitted_val) - ord('A')
+                    # Case 3: "Option A", "Choice B" etc.
+                    elif any(submitted_val.startswith(p) for p in ["OPTION ", "CHOICE "]):
+                        last_char = submitted_val[-1]
+                        if 'A' <= last_char <= 'Z':
+                            resolved_idx = ord(last_char) - ord('A')
+                        elif last_char.isdigit():
+                            resolved_idx = int(last_char)
+
+                    if 0 <= resolved_idx < len(options):
+                        stored_answer_text = str(options[resolved_idx])
+                        logger.info(f"Resolved aptitude input '{data.answer_text}' to text during check for session {interview_id}: {stored_answer_text}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve aptitude input during check for session {interview_id}: {e}")
+
         # 4. Check if answer exists (we will update it instead of rejecting)
         existing_answer = db.query(InterviewAnswer).filter(
             InterviewAnswer.question_id == data.question_id,
@@ -1764,7 +1793,12 @@ async def submit_answer(
         ).first()
         
         if existing_answer and existing_answer.evaluated_at:
-             # If it was already evaluated, we don't allow overwriting to prevent race conditions/cheating
+             # Idempotent replay: if they resubmitted the exact same raw or resolved text, return success
+             if existing_answer.answer_text == stored_answer_text or existing_answer.answer_text == data.answer_text:
+                 logger.info(f"Idempotent resubmission of already evaluated answer for question {data.question_id} in interview {interview_id}")
+                 return {"success": True, "answer_id": existing_answer.id, "idempotent_replay": True}
+             
+             # If it was already evaluated and is different, we don't allow overwriting to prevent race conditions/cheating
              logger.warning(f"Submission rejected: Answer for question {data.question_id} in interview {interview_id} was already evaluated.")
              raise HTTPException(
                  status_code=status.HTTP_409_CONFLICT,
@@ -1839,35 +1873,8 @@ async def submit_answer(
 
         # 6. Save Answer
         try:
-            stored_answer_text = data.answer_text
-            
-            # Resolve aptitude index or letter to actual text if possible for better reporting
-            if current_question.question_type == "aptitude" and current_question.options:
-                try:
-                    options = json.loads(current_question.options)
-                    if isinstance(options, list) and len(options) > 0:
-                        submitted_val = data.answer_text.strip().upper()
-                        resolved_idx = -1
-                        
-                        # Case 1: Simple digit index (0, 1, 2...)
-                        if submitted_val.isdigit():
-                            resolved_idx = int(submitted_val)
-                        # Case 2: Letter index (A, B, C...)
-                        elif len(submitted_val) == 1 and 'A' <= submitted_val <= 'Z':
-                            resolved_idx = ord(submitted_val) - ord('A')
-                        # Case 3: "Option A", "Choice B" etc.
-                        elif any(submitted_val.startswith(p) for p in ["OPTION ", "CHOICE "]):
-                            last_char = submitted_val[-1]
-                            if 'A' <= last_char <= 'Z':
-                                resolved_idx = ord(last_char) - ord('A')
-                            elif last_char.isdigit():
-                                resolved_idx = int(last_char)
-
-                        if 0 <= resolved_idx < len(options):
-                            stored_answer_text = str(options[resolved_idx])
-                            logger.info(f"Resolved aptitude input '{data.answer_text}' to text for session {interview_id}: {stored_answer_text}")
-                except Exception as e:
-                    logger.warning(f"Failed to resolve aptitude input for session {interview_id}: {e}")
+            # stored_answer_text has already been resolved and validated above
+            pass
 
             if existing_answer:
                 # ── Phase 7: Answer Versioning ──

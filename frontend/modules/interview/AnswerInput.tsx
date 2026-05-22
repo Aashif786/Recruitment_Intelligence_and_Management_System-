@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Mic, MicOff, Loader2, Send, ShieldAlert } from 'lucide-react';
+import { Mic, MicOff, Loader2, Send, ShieldAlert, CheckCircle2 } from 'lucide-react';
+
 
 interface AnswerInputProps {
     onSubmit: (answer: string) => void;
@@ -19,7 +20,9 @@ interface AnswerInputProps {
     onRetry?: () => void;
     options?: string[];
     initialValue?: string | null;
+    isSubmitted?: boolean;
 }
+
 
 export default function AnswerInput({
     onSubmit,
@@ -36,12 +39,18 @@ export default function AnswerInput({
     onRetry,
     options = [],
     initialValue = '',
+    isSubmitted = false,
 }: AnswerInputProps) {
     const [text, setText] = useState('');
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
     // Sync initial value when question changes
     useEffect(() => {
+        if (isSubmitted) {
+            setSelectedOption(null);
+            setText('');
+            return;
+        }
         if (options.length > 0 && initialValue) {
             const index = initialValue.charCodeAt(0) - 65;
             if (index >= 0 && index < options.length) {
@@ -55,7 +64,7 @@ export default function AnswerInput({
             setSelectedOption(null);
             setText(initialValue || '');
         }
-    }, [initialValue]); // Only update when initialValue changes, avoiding resets on options re-render
+    }, [initialValue, isSubmitted]); // Only update when initialValue changes, avoiding resets on options re-render
 
     const handleTranscriptionResult = (transcribedText: string) => {
         setText((prev) => {
@@ -94,7 +103,19 @@ export default function AnswerInput({
         <Card className="w-full shadow-sm border border-slate-200 bg-white rounded-2xl lg:rounded-3xl overflow-hidden">
             <CardContent className="p-4 sm:p-6 lg:p-10">
                 <form onSubmit={handleSubmit} className="flex flex-col space-y-4 lg:space-y-8">
-                    {isMCQ ? (
+                    {isSubmitted ? (
+                        <div className="flex flex-col items-center justify-center py-10 lg:py-16 px-4 bg-slate-50/50 rounded-2xl lg:rounded-3xl border border-dashed border-slate-200 text-center space-y-4 transition-all">
+                            <div className="w-16 h-16 lg:w-20 lg:h-20 bg-green-50 rounded-full flex items-center justify-center text-green-500 animate-pulse border border-green-100">
+                                <CheckCircle2 className="w-8 h-8 lg:w-10 lg:h-10" />
+                            </div>
+                            <h3 className="text-lg lg:text-2xl font-extrabold text-slate-800 tracking-tight">
+                                Answer Submitted Successfully
+                            </h3>
+                            <p className="text-xs lg:text-sm text-slate-500 font-medium max-w-md leading-relaxed">
+                                Your response has been locked and evaluated. Use the navigation controls below to review other active questions.
+                            </p>
+                        </div>
+                    ) : isMCQ ? (
                         <div className="space-y-4 lg:space-y-6">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Select One Option</span>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
@@ -144,35 +165,39 @@ export default function AnswerInput({
                             >
                                 <span className="text-[10px] lg:text-xs font-black uppercase tracking-widest">Next {'>'}</span>
                             </button>
-                            <span className="text-[9px] lg:text-[10px] text-slate-400 font-medium italic hidden xs:block">Answer each question and submit to move forward</span>
+                            <span className="text-[9px] lg:text-[10px] text-slate-400 font-medium italic hidden xs:block">
+                                {isSubmitted ? "Reviewing completed question" : "Answer each question and submit to move forward"}
+                            </span>
                         </div>
 
-                        <div className="flex items-center gap-2 lg:gap-4 w-full sm:w-auto">
-                            <Button variant="ghost" className="flex-1 sm:flex-none h-10 lg:h-14 px-4 lg:px-8 rounded-xl lg:rounded-2xl bg-slate-100 text-red-500 font-black text-[10px] lg:text-xs uppercase tracking-widest hover:bg-red-50">
-                                End Early
-                            </Button>
-                            
-                            {!isMCQ && (
-                                <Button 
-                                    type="button" 
-                                    variant={isListening ? "destructive" : "outline"}
-                                    size="icon" 
-                                    disabled={disabled || isTranscribing} 
-                                    onClick={handleMicClick}
-                                    className={`w-10 h-10 lg:w-14 lg:h-14 rounded-xl lg:rounded-2xl shadow-sm transition-all ${isListening ? "animate-pulse shadow-lg shadow-red-500/20" : "hover:border-primary hover:text-primary"}`}
-                                >
-                                    {isTranscribing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : isListening ? <MicOff className="w-4 h-4 lg:w-5 lg:h-5" /> : <Mic className="w-4 h-4 lg:w-5 lg:h-5" />}
+                        {!isSubmitted && (
+                            <div className="flex items-center gap-2 lg:gap-4 w-full sm:w-auto">
+                                <Button variant="ghost" className="flex-1 sm:flex-none h-10 lg:h-14 px-4 lg:px-8 rounded-xl lg:rounded-2xl bg-slate-100 text-red-500 font-black text-[10px] lg:text-xs uppercase tracking-widest hover:bg-red-50">
+                                    End Early
                                 </Button>
-                            )}
+                                
+                                {!isMCQ && (
+                                    <Button 
+                                        type="button" 
+                                        variant={isListening ? "destructive" : "outline"}
+                                        size="icon" 
+                                        disabled={disabled || isTranscribing} 
+                                        onClick={handleMicClick}
+                                        className={`w-10 h-10 lg:w-14 lg:h-14 rounded-xl lg:rounded-2xl shadow-sm transition-all ${isListening ? "animate-pulse shadow-lg shadow-red-500/20" : "hover:border-primary hover:text-primary"}`}
+                                    >
+                                        {isTranscribing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : isListening ? <MicOff className="w-4 h-4 lg:w-5 lg:h-5" /> : <Mic className="w-4 h-4 lg:w-5 lg:h-5" />}
+                                    </Button>
+                                )}
 
-                            <Button 
-                                type="submit" 
-                                disabled={disabled || (!text.trim() && selectedOption === null && !isListening)} 
-                                className={`flex-[2] sm:flex-none h-10 lg:h-14 px-6 lg:px-10 rounded-xl lg:rounded-2xl shadow-lg font-black text-[10px] lg:text-sm uppercase tracking-widest transition-all ${selectedOption !== null || text.trim() ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}
-                            >
-                                Submit <span className="hidden xs:inline">Answer</span> <Send className="w-3 h-3 lg:w-4 lg:h-4 ml-1 lg:ml-2" />
-                            </Button>
-                        </div>
+                                <Button 
+                                    type="submit" 
+                                    disabled={disabled || (!text.trim() && selectedOption === null && !isListening)} 
+                                    className={`flex-[2] sm:flex-none h-10 lg:h-14 px-6 lg:px-10 rounded-xl lg:rounded-2xl shadow-lg font-black text-[10px] lg:text-sm uppercase tracking-widest transition-all ${selectedOption !== null || text.trim() ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}
+                                >
+                                    Submit <span className="hidden xs:inline">Answer</span> <Send className="w-3 h-3 lg:w-4 lg:h-4 ml-1 lg:ml-2" />
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </form>
             </CardContent>

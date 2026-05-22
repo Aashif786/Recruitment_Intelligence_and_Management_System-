@@ -99,6 +99,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
   const videoRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
   const activeStreamRef = useRef<MediaStream | null>(null);
+  const isSubmittingRef = useRef(false);
 
   // ─── SECURITY VIOLATION ────────────────────────────────────────────────────
   const terminationSentRef = useRef(false);
@@ -269,6 +270,11 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
   // ─── SUBMIT ANSWER ─────────────────────────────────────────────────────────
   const handleSubmitAnswer = async (text: string) => {
     if (!text.trim() || !currentQuestion) return;
+    if (isSubmittingRef.current) {
+      console.warn('Submission already in progress, ignoring duplicate submit.');
+      return;
+    }
+    isSubmittingRef.current = true;
     setIsEvaluating(true);
     setLatestFeedback(null);
     addMsg('Analyzing your response...');
@@ -337,6 +343,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
       }
     } finally {
       setIsEvaluating(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -359,22 +366,71 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
     }
   };
 
+  const isQuestionLocked = useCallback((qNum: number) => {
+    const targetQ = allQuestions.find(q => q.question_number === qNum);
+    if (!targetQ) return true;
+    
+    // Group all questions by type
+    const groups: Record<string, any[]> = {};
+    allQuestions.forEach((q) => {
+      const type = (q.question_type || 'General').toLowerCase();
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(q);
+    });
+    
+    const orderedTypes = ['aptitude', 'technical', 'behavioral'];
+    const otherTypes = Object.keys(groups).filter(t => !orderedTypes.includes(t));
+    const displayOrder = [...orderedTypes, ...otherTypes];
+    
+    const targetType = (targetQ.question_type || 'General').toLowerCase();
+    const targetTypeIdx = displayOrder.indexOf(targetType);
+    
+    // Check if any previous type has incomplete questions
+    for (let i = 0; i < targetTypeIdx; i++) {
+      const prevType = displayOrder[i];
+      const prevGroup = groups[prevType];
+      if (prevGroup && prevGroup.length > 0) {
+        const hasIncomplete = prevGroup.some(q => !completedQuestions.includes(q.question_number));
+        if (hasIncomplete) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [allQuestions, completedQuestions]);
+
   // ─── NAVIGATION ───────────────────────────────────────────────────────────
   const jumpToQuestion = useCallback(async (num: number) => {
     if (!allQuestions.find(q => q.question_number === num)) return;
     if (isEvaluating) { toast.warning('Please wait for evaluation to complete.'); return; }
+    if (isQuestionLocked(num)) {
+      toast.warning('Please complete all questions in the current section first.');
+      return;
+    }
     setIsLoading(true);
     await loadCurrentQuestion(num);
     setIsLoading(false);
-  }, [totalQuestions, isEvaluating, loadCurrentQuestion]);
+  }, [totalQuestions, isEvaluating, loadCurrentQuestion, allQuestions, isQuestionLocked]);
 
   const handleNext = () => {
     const nextQ = [...allQuestions].sort((a,b) => a.question_number - b.question_number).find(q => q.question_number > currentQuestionNumber);
-    if (nextQ) jumpToQuestion(nextQ.question_number);
+    if (nextQ) {
+      if (isQuestionLocked(nextQ.question_number)) {
+        toast.warning('Please complete all questions in the current section first.');
+        return;
+      }
+      jumpToQuestion(nextQ.question_number);
+    }
   };
   const handlePrev = () => {
     const prevQ = [...allQuestions].sort((a,b) => b.question_number - a.question_number).find(q => q.question_number < currentQuestionNumber);
-    if (prevQ) jumpToQuestion(prevQ.question_number);
+    if (prevQ) {
+      if (isQuestionLocked(prevQ.question_number)) {
+        toast.warning('Please complete all questions in the current section first.');
+        return;
+      }
+      jumpToQuestion(prevQ.question_number);
+    }
   };
 
   // ─── TRANSCRIPTION ─────────────────────────────────────────────────────────
@@ -512,6 +568,16 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
       }
     };
   }, [handleStrike]); // Only run on mount, but depends on handleStrike
+
+  // Synchronize camera stream to video element when isStarted changes
+  useEffect(() => {
+    if (sessionVideoRef.current && activeStreamRef.current) {
+      if (sessionVideoRef.current.srcObject !== activeStreamRef.current) {
+        sessionVideoRef.current.srcObject = activeStreamRef.current;
+        console.log("Attached active camera stream to current video element.");
+      }
+    }
+  }, [isStarted]);
 
   // Proctoring monitors & Video recorder (Runs when isStarted becomes true)
   useEffect(() => {
@@ -846,6 +912,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
               onRetry={() => {}}
               options={currentQuestion?.options}
               initialValue={currentQuestion?.answer_text}
+              isSubmitted={completedQuestions.includes(currentQuestionNumber)}
             />
 
             {/* Status bar */}
