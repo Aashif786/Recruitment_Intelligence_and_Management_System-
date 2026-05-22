@@ -387,13 +387,7 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
         method: 'POST',
         body: JSON.stringify({ force: true, ended_early: false }),
       });
-    } catch { /* ignore, show feedback anyway */ }
-    // Fetch final scores for feedback popup
-    try {
-      const freshAll: any[] = await apiFetch(`/api/interviews/${interviewId}/questions`, token);
-      const scores = freshAll.map(q => ({ question_number: q.question_number, question_type: q.question_type || 'general', score: q.answer_score ?? null }));
-      setFinalScores(scores);
-    } catch { /* use existing */ }
+    } catch { /* ignore — show completion screen regardless */ }
     setShowFeedbackPanel(true);
   };
 
@@ -1254,47 +1248,48 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
       {/* ── FEEDBACK PANEL ────────────────────────────────────────────────────── */}
       {showFeedbackPanel && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-          <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-400 max-h-[90vh] flex flex-col">
-            <div className="h-2 bg-gradient-to-r from-primary via-blue-500 to-indigo-400 w-full" />
-            <div className="p-8 flex-shrink-0 text-center border-b border-slate-100">
-              <ShieldCheck className="w-14 h-14 text-primary mx-auto mb-4" />
-              <h2 className="text-2xl font-black text-slate-900">Interview Complete</h2>
-              <p className="text-slate-500 font-medium mt-2">Your responses have been securely submitted and analyzed.</p>
-            </div>
-            <div className="p-8 overflow-y-auto flex-1">
-              {finalScores.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Performance Breakdown</p>
-                  {finalScores.map((s) => (
-                    <div key={s.question_number} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                      <span className="text-xs font-bold text-slate-600">Q{s.question_number} <span className="text-slate-400 capitalize">({s.question_type})</span></span>
-                      <div className="flex items-center gap-2">
-                        {s.score === null ? (
-                          <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Evaluating...</span>
-                        ) : (
-                          <>
-                            <div className="flex gap-0.5">
-                              {[1,2,3,4,5,6,7,8,9,10].map(i => (
-                                <div key={i} className={`w-2 h-4 rounded-sm transition-all ${ i <= (s.score ?? 0) ? (s.score! >= 7 ? 'bg-green-500' : s.score! >= 4 ? 'bg-amber-400' : 'bg-red-400') : 'bg-slate-200'}`} />
-                              ))}
-                            </div>
-                            <span className={`text-xs font-black w-8 text-right ${ (s.score ?? 0) >= 7 ? 'text-green-600' : (s.score ?? 0) >= 4 ? 'text-amber-600' : 'text-red-600'}`}>{s.score}/10</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+          <div className="max-w-lg w-full bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-400">
+            <div className="h-2 bg-gradient-to-r from-primary via-green-500 to-emerald-400 w-full" />
+            <div className="p-12 text-center space-y-6">
+              {/* Animated success ring */}
+              <div className="relative flex items-center justify-center mx-auto w-24 h-24">
+                <div className="absolute inset-0 rounded-full bg-green-500/10 animate-ping" />
+                <div className="relative w-20 h-20 rounded-full bg-green-500/15 border-2 border-green-500/30 flex items-center justify-center">
+                  <ShieldCheck className="w-10 h-10 text-green-500" />
                 </div>
-              ) : (
-                <p className="text-center text-slate-400 font-medium py-8">Scores are being calculated. Please check your dashboard shortly.</p>
-              )}
-            </div>
-            <div className="p-6 border-t border-slate-100 flex-shrink-0">
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Interview Complete!</h2>
+                <p className="text-slate-500 font-medium text-base leading-relaxed">
+                  Your responses have been <strong>securely recorded</strong> and submitted for AI evaluation.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 pt-2">
+                <div className="p-4 bg-slate-50 rounded-2xl text-center">
+                  <div className="text-2xl font-black text-slate-800">{allQuestions.length}</div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Questions</div>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl text-center">
+                  <div className="text-2xl font-black text-green-600">{completedQuestions.length}</div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Answered</div>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl text-center">
+                  <div className="text-2xl font-black text-primary">AI</div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Reviewed</div>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                Our AI evaluation engine is processing your responses. The hiring team will be notified with a detailed performance report. You can track your application status from the dashboard.
+              </p>
+
               <Button
                 className="w-full h-14 rounded-2xl font-black text-base shadow-xl shadow-primary/20"
                 onClick={() => window.location.href = '/calrims/'}
               >
-                Exit & View Full Status
+                Exit & Track Application Status
               </Button>
             </div>
           </div>
