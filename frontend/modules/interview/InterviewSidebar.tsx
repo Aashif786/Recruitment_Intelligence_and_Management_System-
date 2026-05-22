@@ -52,6 +52,7 @@ interface InterviewSidebarProps {
     incorrectQuestions: number[];
     onSelectQuestion: (index: number) => void;
     strikes: number;
+    allQuestions: any[];
 }
 
 export default function InterviewSidebar({ 
@@ -59,8 +60,25 @@ export default function InterviewSidebar({
     completedQuestions, 
     incorrectQuestions, 
     onSelectQuestion,
-    strikes 
+    strikes,
+    allQuestions = []
 }: InterviewSidebarProps) {
+
+    // Group questions by type
+    const groupedQuestions = React.useMemo(() => {
+        const groups: Record<string, any[]> = {};
+        allQuestions.forEach((q) => {
+            const type = q.question_type || 'General';
+            if (!groups[type]) groups[type] = [];
+            groups[type].push(q);
+        });
+        return groups;
+    }, [allQuestions]);
+
+    const orderedTypes = ['aptitude', 'technical', 'behavioral'];
+    const otherTypes = Object.keys(groupedQuestions).filter(t => !orderedTypes.includes(t.toLowerCase()));
+    const displayOrder = [...orderedTypes, ...otherTypes];
+
     return (
         <div className="space-y-8 p-6 bg-white border-r border-slate-100 h-full overflow-y-auto no-scrollbar">
             {/* Security Status Card */}
@@ -78,35 +96,25 @@ export default function InterviewSidebar({
                 </p>
             </div>
 
-            <SidebarSection 
-                title="Aptitude" 
-                count={10} 
-                current={currentQuestion} 
-                startIndex={1}
-                completed={completedQuestions.filter(q => q >= 1 && q <= 10)}
-                incorrect={incorrectQuestions.filter(q => q >= 1 && q <= 10)}
-                onSelect={onSelectQuestion}
-            />
-
-            <SidebarSection 
-                title="Technical" 
-                count={15} 
-                current={currentQuestion} 
-                startIndex={11}
-                completed={completedQuestions.filter(q => q >= 11 && q <= 25)}
-                incorrect={incorrectQuestions.filter(q => q >= 11 && q <= 25)}
-                onSelect={onSelectQuestion}
-            />
-
-            <SidebarSection 
-                title="Behavioral" 
-                count={5} 
-                current={currentQuestion} 
-                startIndex={26}
-                completed={completedQuestions.filter(q => q >= 26 && q <= 30)}
-                incorrect={incorrectQuestions.filter(q => q >= 26 && q <= 30)}
-                onSelect={onSelectQuestion}
-            />
+            {displayOrder.map(type => {
+                const group = groupedQuestions[type] || groupedQuestions[type.charAt(0).toUpperCase() + type.slice(1)];
+                if (!group || group.length === 0) return null;
+                
+                const startIndex = group[0].question_number;
+                
+                return (
+                    <SidebarSection 
+                        key={type}
+                        title={type.charAt(0).toUpperCase() + type.slice(1)} 
+                        count={group.length} 
+                        current={currentQuestion} 
+                        startIndex={startIndex}
+                        completed={completedQuestions.filter(q => q >= startIndex && q < startIndex + group.length)}
+                        incorrect={incorrectQuestions.filter(q => q >= startIndex && q < startIndex + group.length)}
+                        onSelect={onSelectQuestion}
+                    />
+                );
+            })}
 
             <div className="pt-8 border-t border-slate-50">
                 <button className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-100 transition-colors">

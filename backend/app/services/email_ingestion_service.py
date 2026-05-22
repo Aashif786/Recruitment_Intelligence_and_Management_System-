@@ -36,12 +36,10 @@ def fetch_resume_attachments(db: Session, imap_user: str, imap_pass: str):
             return {"success": False, "error": "Could not access inbox."}
 
         email_ids = messages[0].split()
-        if not email_ids:
-            return {"success": True, "count": 0}
-
-        # Increase limit to 100 most recent for thoroughness
-        if len(email_ids) > 100:
-            email_ids = email_ids[-100:]
+        
+        # Scan the 10 most recent emails (our strict DB duplicate checking handles skipping instantly, but 10 prevents Gmail throttling)
+        if len(email_ids) > 10:
+            email_ids = email_ids[-10:]
             
         saved_count = 0
         logger.info(f"Scanning {len(email_ids)} emails for resume attachments...")

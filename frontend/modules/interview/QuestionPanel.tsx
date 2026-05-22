@@ -32,8 +32,7 @@ export default function QuestionPanel({ question, isLoading, currentQuestionNumb
                             <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Current Question</span>
                         </div>
                         <CardTitle className="text-3xl font-black text-slate-900 tracking-tight flex items-baseline gap-3">
-                            <span className="text-blue-600">{currentQuestionNumber}.</span>
-                            {question?.question || "Initializing Assessment..."}
+                            <span className="text-blue-600">Question {currentQuestionNumber}</span>
                         </CardTitle>
                     </div>
                     {question && (
@@ -54,7 +53,7 @@ export default function QuestionPanel({ question, isLoading, currentQuestionNumb
                     </div>
                 ) : (
                     <p className="text-xl md:text-2xl font-bold text-slate-800 leading-relaxed italic pr-4">
-                        "{question?.question}"
+                        "{question?.question || "Initializing Assessment..."}"
                     </p>
                 )}
             </CardContent>

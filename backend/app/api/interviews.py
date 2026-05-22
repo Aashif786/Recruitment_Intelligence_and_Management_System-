@@ -181,11 +181,7 @@ async def _generate_aptitude_questions(interview: Interview, job: Job, db: Sessi
             selected = repo_questions[:APTITUDE_QUESTION_COUNT]
             for item in selected:
                 if isinstance(item, dict) and 'question' in item:
-                    options = item.get('options', [])
-                    q_text = item['question']
-                    if options:
-                        q_text += '\n' + '\n'.join([f"{chr(65+i)}) {opt}" for i, opt in enumerate(options)])
-                    aptitude_prompts.append(q_text)
+                    aptitude_prompts.append(item)
                 elif isinstance(item, str):
                     aptitude_prompts.append(item)
             logger.info(f"Loaded {len(aptitude_prompts)} aptitude questions from repo set {aptitude_repo_set_id}")
@@ -247,12 +243,7 @@ async def _generate_aptitude_questions(interview: Interview, job: Job, db: Sessi
                 selected = uploaded_questions[:APTITUDE_QUESTION_COUNT]
                 for item in selected:
                     if isinstance(item, dict) and 'question' in item:
-                        # MCQ format: build question text with options
-                        options = item.get('options', [])
-                        q_text = item['question']
-                        if options:
-                            q_text += '\n' + '\n'.join([f"{chr(65+i)}) {opt}" for i, opt in enumerate(options)])
-                        aptitude_prompts.append(q_text)
+                        aptitude_prompts.append(item)
                     elif isinstance(item, str):
                         aptitude_prompts.append(item)
         except Exception as e:

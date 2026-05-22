@@ -55,7 +55,7 @@ export default function AnswerInput({
             setSelectedOption(null);
             setText(initialValue || '');
         }
-    }, [initialValue, options]);
+    }, [initialValue]); // Only update when initialValue changes, avoiding resets on options re-render
 
     const handleTranscriptionResult = (transcribedText: string) => {
         setText((prev) => {

@@ -210,7 +210,7 @@ export default function IngestedEmailsPage() {
             setTimeout(() => mutate(), 30000)
         } catch (err: any) {
             console.error('Sync error:', err)
-            toast.error(err.response?.data?.detail || 'Sync failed. Please verify your IMAP login details.', { id: toastId })
+            toast.error(err.response?.data?.detail || err.message || 'Sync failed. Please verify your IMAP login details.', { id: toastId })
         } finally {
             setIsSyncing(false)
         }
