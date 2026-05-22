@@ -66,14 +66,17 @@ export function NotificationBell() {
     )
 
     const markAsRead = useCallback(async (id: number) => {
+        // Instantly update the local SWR cache (optimistic update)
+        mutate(prev =>
+            prev?.map(n => n.id === id ? { ...n, is_read: true } : n),
+            false
+        )
+
         try {
             await APIClient.put(`/api/notifications/${id}/read`, {})
-            mutate(prev =>
-                prev?.map(n => n.id === id ? { ...n, is_read: true } : n),
-                false
-            )
+            mutate() // Background revalidation to sync with the server
         } catch {
-            // Silently fail
+            mutate() // Revert local cache on failure
         }
     }, [mutate])
 
@@ -144,7 +147,7 @@ export function NotificationBell() {
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">We'll alert you when something happens.</p>
                         </div>
                     ) : (
-                        <div className="flex flex-col">
+                        <div className="flex flex-col w-[408px]">
                             {sortedNotifications.map(n => (
                                 <button
                                     key={n.id}
@@ -156,15 +159,19 @@ export function NotificationBell() {
                                         }
                                     }}
                                     className={cn(
-                                        "w-full text-left p-4 pr-8 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all border-l-4 group flex items-start gap-3 border-b border-slate-100 dark:border-slate-800 last:border-b-0 relative",
-                                        !n.is_read ? 'bg-primary/[0.02] border-l-primary' : 'bg-transparent border-l-transparent'
+                                        "w-full text-left pl-4 py-4 pr-8 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-all border-l-4 group border-b border-slate-100 dark:border-slate-800 last:border-b-0 relative",
+                                        !n.is_read 
+                                            ? 'bg-slate-50/60 dark:bg-slate-800/40 border-l-primary' 
+                                            : 'bg-transparent border-l-transparent'
                                     )}
                                 >
                                     <div className="flex-1 min-w-0 pr-2 relative">
                                         <div className="flex items-center justify-between gap-3 mb-1">
                                             <p className={cn(
                                                 "text-sm truncate flex-1 min-w-0 pr-1",
-                                                !n.is_read ? 'font-bold text-slate-800 dark:text-slate-100' : 'font-semibold text-slate-500 dark:text-slate-400'
+                                                !n.is_read 
+                                                    ? 'font-bold text-slate-900 dark:text-slate-100' 
+                                                    : 'font-normal text-slate-400 dark:text-slate-500'
                                             )}>
                                                 {n.title}
                                             </p>
@@ -174,7 +181,9 @@ export function NotificationBell() {
                                         </div>
                                         <p className={cn(
                                             "text-xs line-clamp-2 leading-relaxed pr-2",
-                                            !n.is_read ? 'text-slate-600 dark:text-slate-300 font-medium' : 'text-slate-400 dark:text-slate-500'
+                                            !n.is_read 
+                                                ? 'text-slate-600 dark:text-slate-300 font-medium' 
+                                                : 'text-slate-400/80 dark:text-slate-500/80 font-normal'
                                         )}>
                                             {n.message}
                                         </p>
@@ -188,7 +197,7 @@ export function NotificationBell() {
                                         )}
                                     </div>
                                     {!n.is_read && (
-                                        <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5 shadow-sm shadow-primary/40 block" />
+                                        <span className="absolute right-3.5 top-[22px] h-2 w-2 rounded-full bg-primary shadow-sm shadow-primary/40 block animate-pulse shrink-0" />
                                     )}
                                 </button>
                             ))}

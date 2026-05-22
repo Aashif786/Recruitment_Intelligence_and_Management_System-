@@ -58,4 +58,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
+
+RUN addgroup --system nextjs && adduser --system --ingroup nextjs nextjs
+USER nextjs
+
 CMD ["node", "server.js"]

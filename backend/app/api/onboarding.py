@@ -136,10 +136,16 @@ async def generate_pdf_via_puppeteer(html_content: str, filename: str, bucket: s
     logger.info(f"Starting Puppeteer PDF generation request to {pdf_service_url} for {filename}...")
     
     try:
+        headers = {}
+        pdf_secret = os.environ.get("PDF_GENERATION_SECRET") or os.environ.get("JWT_SECRET") or getattr(settings, "jwt_secret", None)
+        if pdf_secret:
+            headers["Authorization"] = f"Bearer {pdf_secret}"
+
         async with httpx.AsyncClient(follow_redirects=True) as client:
             response = await client.post(
                 pdf_service_url,
                 json={"html": html_content},
+                headers=headers,
                 timeout=60.0
             )
             elapsed_time = time.time() - start_time

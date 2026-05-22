@@ -1,3 +1,0 @@
-Testing email sending to pradeepmuthuselvan08@gmail.com
-SMTP Host: smtp.gmail.com, User: pradeepmuthuselvan08@gmail.com
-Result: True

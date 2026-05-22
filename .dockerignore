@@ -75,3 +75,7 @@ frontend/scratch/
 *.xlsx
 *.xls
 CALRIMS.xlsx
+
+# Brain files
+backend/app/brain/
+

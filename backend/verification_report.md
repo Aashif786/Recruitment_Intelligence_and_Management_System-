@@ -1,6 +1,6 @@
 # RIMS Production Readiness Verification Report
 
-Generated at: `2026-05-22T09:12:03.657248+00:00`
+Generated at: `2026-05-22T11:24:50.065873+00:00`
 
 > [!NOTE]
 > **SUCCESS**: All verification tests passed. RIMS backend is production-ready!
@@ -9,21 +9,20 @@ Generated at: `2026-05-22T09:12:03.657248+00:00`
 
 | Verification Tier | Status | Duration | Exit Code |
 | :--- | :---: | :---: | :---: |
-| Tier 1: Core Pytest Suite | ✅ PASSED | `103.80s` | `0` |
-| Tier 2: Adaptive Difficulty Engine | ✅ PASSED | `3.16s` | `0` |
-| Tier 2: AI Client Resilience & Resolution | ✅ PASSED | `5.45s` | `0` |
-| Tier 2: Enterprise Schema & Signature Validators | ✅ PASSED | `0.87s` | `0` |
-| Tier 2: Idempotency & Ephemeral Replay Cache | ✅ PASSED | `1.20s` | `0` |
-| Tier 2: WebSocket Submit Idempotency | ✅ PASSED | `7.41s` | `0` |
-| Tier 3: Production Smoke Verification | ✅ PASSED | `5.98s` | `0` |
-| **Total** | | **`127.86s`** | |
+| Tier 1: Core Pytest Suite | ✅ PASSED | `73.09s` | `0` |
+| Tier 2: AI Client Resilience & Resolution | ✅ PASSED | `2.59s` | `0` |
+| Tier 2: Enterprise Schema & Signature Validators | ✅ PASSED | `0.67s` | `0` |
+| Tier 2: Idempotency & Ephemeral Replay Cache | ✅ PASSED | `1.60s` | `0` |
+| Tier 2: WebSocket Submit Idempotency | ✅ PASSED | `6.65s` | `0` |
+| Tier 3: Production Smoke Verification | ✅ PASSED | `5.87s` | `0` |
+| **Total** | | **`90.46s`** | |
 
 ## Detailed Execution Logs
 
 ### Tier 1: Core Pytest Suite
 
 - **Exit Code**: `0`
-- **Duration**: `103.80s`
+- **Duration**: `73.09s`
 
 **Standard Output**:
 ```text
@@ -348,24 +347,7 @@ tests/test_tickets_exhaustive.py::test_grievance_email_enumeration_protection PA
 tests/test_tickets_exhaustive.py::test_collaborative_hr_ticket_resolution_flow PASSED [ 99%]
 tests/test_tickets_exhaustive.py::test_candidate_support_ticket_creation PASSED [100%]
 
-======================= 311 passed in 91.29s (0:01:31) ========================
-
-```
-
----
-
-### Tier 2: Adaptive Difficulty Engine
-
-- **Exit Code**: `0`
-- **Duration**: `3.16s`
-
-**Standard Error / Diagnostics**:
-```text
-...
-----------------------------------------------------------------------
-Ran 3 tests in 0.000s
-
-OK
+======================= 311 passed in 65.88s (0:01:05) ========================
 
 ```
 
@@ -374,13 +356,13 @@ OK
 ### Tier 2: AI Client Resilience & Resolution
 
 - **Exit Code**: `0`
-- **Duration**: `5.45s`
+- **Duration**: `2.59s`
 
 **Standard Error / Diagnostics**:
 ```text
 ....
 ----------------------------------------------------------------------
-Ran 4 tests in 0.020s
+Ran 4 tests in 0.005s
 
 OK
 
@@ -391,16 +373,16 @@ OK
 ### Tier 2: Enterprise Schema & Signature Validators
 
 - **Exit Code**: `0`
-- **Duration**: `0.87s`
+- **Duration**: `0.67s`
 
 **Standard Error / Diagnostics**:
 ```text
-{"ts": "2026-05-22T14:41:49.016998", "event": "email_validation_rejected", "endpoint": "apply_for_job", "status": 400, "extra": {"reason": "disposable", "domain": "mailinator.com", "email_hash": "76296f9b6812"}}
-.{"ts": "2026-05-22T14:41:49.019845", "event": "email_validation_rejected", "endpoint": "apply_for_job", "status": 400, "extra": {"reason": "invalid_format", "email_hash": "eba038945cb8"}}
-..{"ts": "2026-05-22T14:41:49.022473", "event": "email_validation_rejected", "endpoint": "apply_for_job", "status": 400, "extra": {"reason": "numeric_local_part", "email_hash": "eb934be363f7"}}
+{"ts": "2026-05-22T16:54:35.869930", "event": "email_validation_rejected", "endpoint": "apply_for_job", "status": 400, "extra": {"reason": "disposable", "domain": "mailinator.com", "email_hash": "76296f9b6812"}}
+.{"ts": "2026-05-22T16:54:35.878910", "event": "email_validation_rejected", "endpoint": "apply_for_job", "status": 400, "extra": {"reason": "invalid_format", "email_hash": "eba038945cb8"}}
+..{"ts": "2026-05-22T16:54:35.883546", "event": "email_validation_rejected", "endpoint": "apply_for_job", "status": 400, "extra": {"reason": "numeric_local_part", "email_hash": "eb934be363f7"}}
 .........
 ----------------------------------------------------------------------
-Ran 12 tests in 0.083s
+Ran 12 tests in 0.116s
 
 OK
 
@@ -411,14 +393,14 @@ OK
 ### Tier 2: Idempotency & Ephemeral Replay Cache
 
 - **Exit Code**: `0`
-- **Duration**: `1.20s`
+- **Duration**: `1.60s`
 
 **Standard Error / Diagnostics**:
 ```text
 ....Redis ping failed; discarding client and reconnecting: boom
 .
 ----------------------------------------------------------------------
-Ran 5 tests in 0.024s
+Ran 5 tests in 0.031s
 
 OK
 
@@ -429,15 +411,40 @@ OK
 ### Tier 2: WebSocket Submit Idempotency
 
 - **Exit Code**: `0`
-- **Duration**: `7.41s`
+- **Duration**: `6.65s`
 
 **Standard Output**:
 ```text
-2026-05-22 14:41:56,672 - root - INFO - Logging initialized. File logs saved to C:\Users\user\Desktop\PROJECT\rims\backend\logs
-2026-05-22 14:41:56,672 - app.core.config - INFO - Environment config
-2026-05-22 14:41:56,713 - app.main - WARNING - Database migration check failed (attachment_resumes.message_id): (sqlite3.OperationalError) near "EXISTS": syntax error
-[SQL: ALTER TABLE attachment_resumes ADD COLUMN IF NOT EXISTS message_id VARCHAR(255) UNIQUE]
+2026-05-22 16:54:43,232 - root - INFO - Logging initialized. File logs saved to C:\Users\user\Desktop\PROJECT\rims\backend\logs
+2026-05-22 16:54:43,232 - app.core.config - INFO - Environment config
+2026-05-22 16:54:43,272 - app.migrations - INFO - Ensured question_sets table exists
+2026-05-22 16:54:43,275 - app.migrations - INFO - Applying migration: Adding column interview_questions.question_options (TEXT)...
+2026-05-22 16:54:43,276 - app.migrations - INFO - Migration SUCCESS: Column interview_questions.question_options added.
+2026-05-22 16:54:43,276 - app.migrations - INFO - Applying migration: Adding column interview_questions.correct_option (INTEGER)...
+2026-05-22 16:54:43,278 - app.migrations - INFO - Migration SUCCESS: Column interview_questions.correct_option added.
+2026-05-22 16:54:43,290 - app.migrations - INFO - Applying migration: Adding column applications.notification_sent (BOOLEAN DEFAULT FALSE)...
+2026-05-22 16:54:43,291 - app.migrations - INFO - Migration SUCCESS: Column applications.notification_sent added.
+2026-05-22 16:54:43,306 - app.migrations - INFO - Applying migration: Adding column interviews.completed_at (TIMESTAMP)...
+2026-05-22 16:54:43,307 - app.migrations - INFO - Migration SUCCESS: Column interviews.completed_at added.
+2026-05-22 16:54:43,307 - app.migrations - INFO - Applying migration: Adding column interviews.termination_reason (VARCHAR(100))...
+2026-05-22 16:54:43,308 - app.migrations - INFO - Migration SUCCESS: Column interviews.termination_reason added.
+2026-05-22 16:54:43,309 - app.migrations - INFO - Applying migration: Adding column interviews.report_generated (BOOLEAN DEFAULT FALSE)...
+2026-05-22 16:54:43,310 - app.migrations - INFO - Migration SUCCESS: Column interviews.report_generated added.
+2026-05-22 16:54:43,311 - app.migrations - INFO - Applying migration: Adding column interviews.candidate_id (INTEGER REFERENCES users(id))...
+2026-05-22 16:54:43,312 - app.migrations - INFO - Migration SUCCESS: Column interviews.candidate_id added.
+2026-05-22 16:54:43,314 - app.migrations - INFO - Backfilled applications.resume_status from resume_extractions
+2026-05-22 16:54:43,315 - app.migrations - INFO - Ensured global_settings table exists
+2026-05-22 16:54:43,315 - app.migrations - INFO - Ensured interview_feedbacks table exists
+2026-05-22 16:54:43,315 - app.migrations - WARNING - Error updating role constraint: (sqlite3.OperationalError) near "CONSTRAINT": syntax error
+[SQL: ALTER TABLE users DROP CONSTRAINT IF EXISTS check_users_role]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-05-22 16:54:43,316 - app.migrations - WARNING - No super_admin_email configured. Skipping database super_admin role promotion.
+2026-05-22 16:54:43,316 - app.migrations - INFO - Migration completed: normalized roles and promoted super admin
+2026-05-22 16:54:43,318 - app.migrations - INFO - Migration completed: populated Application.hr_id
+2026-05-22 16:54:43,318 - app.migrations - INFO - Migration completed: ensured index uq_application_job_email
+2026-05-22 16:54:43,318 - app.migrations - INFO - Migration completed: ensured index uq_answer_per_question
+2026-05-22 16:54:43,319 - app.migrations - INFO - Migration completed: ensured index uq_interview_application_id
+2026-05-22 16:54:43,321 - app.migrations - INFO - Database schema and Enum validation passed.
 
 ```
 
@@ -445,7 +452,7 @@ OK
 ```text
 ..
 ----------------------------------------------------------------------
-Ran 2 tests in 0.209s
+Ran 2 tests in 0.205s
 
 OK
 
@@ -456,28 +463,28 @@ OK
 ### Tier 3: Production Smoke Verification
 
 - **Exit Code**: `0`
-- **Duration**: `5.98s`
+- **Duration**: `5.87s`
 
 **Standard Output**:
 ```text
-2026-05-22 14:41:57,911 [INFO] ==================================================
-2026-05-22 14:41:57,911 [INFO] RIMS PRODUCTION READINESS SMOKE TEST
-2026-05-22 14:41:57,911 [INFO] Started at: 2026-05-22T09:11:57.911947+00:00
-2026-05-22 14:41:57,912 [INFO] ==================================================
-2026-05-22 14:41:57,912 [INFO] --- Testing Database Connectivity ---
-2026-05-22 14:41:59,380 [INFO] SUCCESS: Database ping in 0.787s
-2026-05-22 14:41:59,657 [INFO] STATS: Users=21, Applications=225
-2026-05-22 14:41:59,696 [INFO] --- Testing Supabase Storage ---
-2026-05-22 14:42:01,855 [INFO] HTTP Request: GET https://itajqbrebdbrunfqpbmg.supabase.co/storage/v1/bucket/resumes "HTTP/2 200 OK"
-2026-05-22 14:42:01,856 [INFO] SUCCESS: Bucket 'resumes' is accessible
-2026-05-22 14:42:01,928 [INFO] HTTP Request: GET https://itajqbrebdbrunfqpbmg.supabase.co/storage/v1/bucket/offers "HTTP/2 200 OK"
-2026-05-22 14:42:01,929 [INFO] SUCCESS: Bucket 'offers' is accessible
-2026-05-22 14:42:01,929 [INFO] --- Testing AI Services reachability ---
-2026-05-22 14:42:02,558 [INFO] CONFIG: API Keys Present: {'OpenAI': False, 'Groq': True, 'Anthropic': False, 'Gemini': False}
-2026-05-22 14:42:03,400 [INFO] HTTP Request: GET https://api.groq.com/openai/v1/models "HTTP/1.1 200 OK"
-2026-05-22 14:42:03,401 [INFO] SUCCESS: Groq API reachability confirmed
-2026-05-22 14:42:03,402 [INFO] ==================================================
-2026-05-22 14:42:03,402 [INFO] SUCCESS: ALL SYSTEMS GO! RIMS is production-ready.
+2026-05-22 16:54:44,459 [INFO] ==================================================
+2026-05-22 16:54:44,459 [INFO] RIMS PRODUCTION READINESS SMOKE TEST
+2026-05-22 16:54:44,459 [INFO] Started at: 2026-05-22T11:24:44.459830+00:00
+2026-05-22 16:54:44,459 [INFO] ==================================================
+2026-05-22 16:54:44,460 [INFO] --- Testing Database Connectivity ---
+2026-05-22 16:54:45,981 [INFO] SUCCESS: Database ping in 0.639s
+2026-05-22 16:54:46,290 [INFO] STATS: Users=21, Applications=228
+2026-05-22 16:54:46,316 [INFO] --- Testing Supabase Storage ---
+2026-05-22 16:54:48,170 [INFO] HTTP Request: GET https://itajqbrebdbrunfqpbmg.supabase.co/storage/v1/bucket/resumes "HTTP/2 200 OK"
+2026-05-22 16:54:48,171 [INFO] SUCCESS: Bucket 'resumes' is accessible
+2026-05-22 16:54:48,235 [INFO] HTTP Request: GET https://itajqbrebdbrunfqpbmg.supabase.co/storage/v1/bucket/offers "HTTP/2 200 OK"
+2026-05-22 16:54:48,249 [INFO] SUCCESS: Bucket 'offers' is accessible
+2026-05-22 16:54:48,249 [INFO] --- Testing AI Services reachability ---
+2026-05-22 16:54:48,951 [INFO] CONFIG: API Keys Present: {'OpenAI': False, 'Groq': True, 'Anthropic': False, 'Gemini': False}
+2026-05-22 16:54:49,809 [INFO] HTTP Request: GET https://api.groq.com/openai/v1/models "HTTP/1.1 200 OK"
+2026-05-22 16:54:49,810 [INFO] SUCCESS: Groq API reachability confirmed
+2026-05-22 16:54:49,810 [INFO] ==================================================
+2026-05-22 16:54:49,811 [INFO] SUCCESS: ALL SYSTEMS GO! RIMS is production-ready.
 
 ```
 

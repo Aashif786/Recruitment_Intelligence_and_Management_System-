@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Camera, RefreshCw, Check, X, Upload, Image as ImageIcon } from 'lucide-react'
 import { APIClient } from '@/app/dashboard/lib/api-client'
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 
 interface CapturePhotoDialogProps {
     isOpen: boolean

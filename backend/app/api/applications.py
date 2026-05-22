@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Form, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Form, Request, Query
 from app.core.timezone import get_ist_now
 # Performance Serialization Fallback
 try:
@@ -1077,7 +1077,7 @@ def get_hr_applications(
     time_range: str = None,
     search: str = None,
     skip: int = 0,
-    limit: int = 1000,
+    limit: int = Query(default=50, le=1000),
     current_user: User = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):

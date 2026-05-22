@@ -163,8 +163,11 @@ def run_startup_migrations(engine: Engine):
                 # Check existence to provide better logging
                 if not column_exists(conn, table, column):
                     logger.info(f"Applying migration: Adding column {table}.{column} ({col_type})...")
-                    # PostgreSQL-native 'IF NOT EXISTS' for columns requires PG 9.6+, which we assume.
-                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"))
+                    # PostgreSQL supports 'IF NOT EXISTS' for columns, but SQLite does not.
+                    if "postgresql" in str(conn.engine.url):
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"))
+                    else:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
                     conn.commit()
                     logger.info(f"Migration SUCCESS: Column {table}.{column} added.")
                 else:
@@ -177,9 +180,13 @@ def run_startup_migrations(engine: Engine):
 
         # Ensure approval_status exists on users (crucial for HR flow)
         try:
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'pending'"))
-            conn.commit()
-            logger.info("Ensured users.approval_status exists")
+            if not column_exists(conn, "users", "approval_status"):
+                if "postgresql" in str(engine.url):
+                    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'pending'"))
+                else:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN approval_status VARCHAR(20) DEFAULT 'pending'"))
+                conn.commit()
+                logger.info("Ensured users.approval_status exists")
         except Exception as e:
             _safe_rollback(conn)
             logger.warning(f"Failed to add users.approval_status: {e}")

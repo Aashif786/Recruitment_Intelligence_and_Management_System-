@@ -67,6 +67,10 @@ class SecurityHeadersMiddleware:
                 set_header(b"x-xss-protection", b"1; mode=block")
                 set_header(b"referrer-policy", b"strict-origin-when-cross-origin")
                 set_header(b"strict-transport-security", b"max-age=31536000; includeSubDomains")
+                set_header(b"content-security-policy",
+                           b"default-src 'self'; script-src 'self' 'unsafe-inline'; "
+                           b"img-src 'self' data: blob:; connect-src 'self'; "
+                           b"frame-ancestors 'none'; object-src 'none'")
 
             await send(message)
 

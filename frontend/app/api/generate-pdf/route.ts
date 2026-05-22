@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server"
 import puppeteer from "puppeteer"
 
 export async function POST(req: NextRequest) {
+  // Security check: Validate Authorization header matches JWT_SECRET or PDF_GENERATION_SECRET
+  const authHeader = req.headers.get("authorization")
+  const pdfSecret = process.env.PDF_GENERATION_SECRET || process.env.JWT_SECRET
+
+  if (pdfSecret) {
+    if (!authHeader || !authHeader.startsWith("Bearer ") || authHeader.substring(7) !== pdfSecret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+  }
+
   let browser = null
   try {
     const { html } = await req.json()
@@ -46,9 +56,14 @@ export async function POST(req: NextRequest) {
     `
 
     // Set content and wait for network to be idle (important for fonts/images from external URLs)
-    await page.setContent(styledHtml, {
-      waitUntil: "networkidle0",
-    })
+    try {
+      await page.setContent(styledHtml, {
+        waitUntil: "networkidle2",
+        timeout: 10000, // 10-second limit to prevent hanging on hot-reload/WS connections
+      })
+    } catch (loadError: any) {
+      console.warn("Puppeteer content loading timed out, proceeding to generate PDF anyway:", loadError.message)
+    }
 
     // Generate PDF - Respect CSS page size
     const pdfBuffer = await page.pdf({
