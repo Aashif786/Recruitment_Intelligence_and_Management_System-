@@ -6,9 +6,15 @@ from app.infrastructure.database import engine
 from sqlalchemy import text
 
 with engine.connect() as conn:
-    conn.execute(text("UPDATE users SET role = 'super_admin', approval_status = 'approved' WHERE email = 'caldiminternship@gmail.com'"))
-    conn.commit()
-    print("Promoted caldiminternship@gmail.com to super_admin")
+    from app.core.config import get_settings
+    settings = get_settings()
+    admin_email = (settings.super_admin_email or '').lower().strip()
+    if admin_email:
+        conn.execute(text("UPDATE users SET role = 'super_admin', approval_status = 'approved' WHERE email = :email"), {"email": admin_email})
+        conn.commit()
+        print(f"Promoted {admin_email} to super_admin")
+    else:
+        print("No super_admin_email configured in settings. Skipping promotion.")
 
     # Also backfill applications.hr_id if missing
     try:

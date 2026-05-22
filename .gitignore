@@ -114,3 +114,8 @@ coverage/
 *.seed
 *.pid
 *.pid.lock
+
+# Temporary frontend diagnostic outputs
+frontend/css_files.txt
+frontend/download.htm
+frontend/tsc_output.txt

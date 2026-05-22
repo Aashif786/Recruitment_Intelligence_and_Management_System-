@@ -9,8 +9,8 @@ from app.core.config import get_settings
 async def test_email():
     try:
         settings = get_settings()
-        print(f"Testing email sending to {settings.smtp_from or settings.smtp_user}")
-        to_email = settings.smtp_user or "caldiminternship@gmail.com"
+        print(f"Testing email sending to {settings.super_admin_email or settings.smtp_from or settings.smtp_user}")
+        to_email = settings.super_admin_email or settings.smtp_user or ""
         print(f"SMTP Host: {settings.smtp_host}, User: {settings.smtp_user}")
         result = await send_approved_for_interview_email(to_email, "Software Engineer", "TEST-KEY-123")
         print("Result:", result)

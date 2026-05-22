@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
- * RIMS Global Middleware
+ * RIMS Global Proxy
  * Handles server-side redirection for unauthorized access to dashboard routes.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value
   const { pathname } = request.nextUrl
 
@@ -25,7 +25,7 @@ export function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
-// Ensure the middleware only runs on relevant routes to maintain performance
+// Ensure the proxy only runs on relevant routes to maintain performance
 export const config = {
   matcher: [
     '/dashboard/:path*',

@@ -274,6 +274,19 @@ async def upload_aptitude_questions(
             if not q_text or q_text == 'nan' or q_text == '':
                  continue
                  
+            if not answer or answer == 'nan' or answer == '':
+                 continue
+            
+            # Normalize float representation of numbers (e.g. "1.0" -> "1")
+            try:
+                val = float(answer)
+                if val.is_integer():
+                    answer = str(int(val))
+                else:
+                    answer = str(val)
+            except ValueError:
+                pass
+                 
             q_dict = {
                 "question": q_text,
                 "answer": answer

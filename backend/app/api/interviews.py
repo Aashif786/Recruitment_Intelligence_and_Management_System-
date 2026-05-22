@@ -1911,29 +1911,61 @@ async def submit_answer(
             # Auto-grade aptitude MCQs
             if current_question.question_type == "aptitude" and current_question.correct_answer is not None:
                 submitted_val = data.answer_text.strip()
+                correct_ans_str = current_question.correct_answer.strip()
                 is_correct = False
                 
-                # Resolve letter to index (A=0, B=1, ...) or direct digit
-                submitted_as_int = None
-                if submitted_val.isdigit():
-                    submitted_as_int = int(submitted_val)
-                elif len(submitted_val) == 1 and submitted_val.upper() in "ABCDEFGHIJ":
-                    submitted_as_int = ord(submitted_val.upper()) - ord("A")
+                # 1. Direct text check (case-insensitive)
+                if submitted_val.lower() == correct_ans_str.lower():
+                    is_correct = True
                 
-                try:
-                    # Check both index match and direct text match for maximum resilience
-                    if submitted_as_int is not None and submitted_as_int == int(current_question.correct_answer):
+                # 2. Resolve letter to index (A=0, B=1, ...) or direct digit
+                if not is_correct:
+                    submitted_as_int = None
+                    if submitted_val.isdigit():
+                        submitted_as_int = int(submitted_val)
+                    elif len(submitted_val) == 1 and submitted_val.upper() in "ABCDEFGHIJ":
+                        submitted_as_int = ord(submitted_val.upper()) - ord("A")
+                    
+                    correct_idx = None
+                    # Try parsing correct_answer as float then int
+                    try:
+                        correct_as_float = float(correct_ans_str)
+                        if correct_as_float.is_integer():
+                            correct_idx = int(correct_as_float)
+                    except (ValueError, TypeError):
+                        pass
+                    
+                    # Or try parsing correct_answer as letter index
+                    if correct_idx is None:
+                        if len(correct_ans_str) == 1 and correct_ans_str.upper() in "ABCDEFGHIJ":
+                            correct_idx = ord(correct_ans_str.upper()) - ord("A")
+                            
+                    if correct_idx is not None and submitted_as_int is not None and submitted_as_int == correct_idx:
                         is_correct = True
-                except (ValueError, TypeError):
-                    if current_question.options:
-                        try:
-                            options = json.loads(current_question.options)
-                            correct_idx = int(current_question.correct_answer)
-                            if isinstance(options, list) and correct_idx < len(options):
+
+                # 3. Option lookup check
+                if not is_correct and current_question.options:
+                    try:
+                        options = json.loads(current_question.options)
+                        if isinstance(options, list):
+                            # Try parsing correct answer as index
+                            correct_idx = None
+                            try:
+                                correct_as_float = float(correct_ans_str)
+                                if correct_as_float.is_integer():
+                                    correct_idx = int(correct_as_float)
+                            except (ValueError, TypeError):
+                                pass
+                            
+                            if correct_idx is not None and correct_idx < len(options):
                                 if submitted_val.lower() == options[correct_idx].lower():
                                     is_correct = True
-                        except:
-                            pass
+                            # Also check if correct_ans_str matches one of the option texts, and submitted_val matches its index
+                            elif submitted_as_int is not None and submitted_as_int < len(options):
+                                if options[submitted_as_int].lower() == correct_ans_str.lower():
+                                    is_correct = True
+                    except Exception:
+                        pass
                 
                 answer.answer_score = 10.0 if is_correct else 0.0
                 answer.skill_relevance_score = 10.0 if is_correct else 0.0
