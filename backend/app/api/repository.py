@@ -14,9 +14,12 @@ import logging
 from app.infrastructure.database import get_db
 from app.domain.models import QuestionSet
 from app.core.auth import get_current_hr
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/repository", tags=["Repository"])
+from fastapi import Request
+from app.core.rate_limiter import limiter
 
 
 def _ensure_question_sets_table(db: Session) -> None:
@@ -145,8 +148,9 @@ def _fuzzy_match(role_name: str, job_roles: List[str]) -> bool:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/sets", response_model=List[QuestionSetResponse])
+@limiter.limit("60/minute")
 def list_question_sets(
-    round_type: Optional[str] = Query(None, description="Filter by round_type"),
+    request: Request, round_type: Optional[str] = Query(None, description="Filter by round_type"),
     job_role: Optional[str] = Query(None, description="Fuzzy-match against job_roles tags"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_hr),
@@ -194,18 +198,20 @@ def list_question_sets(
 
     except Exception as e:
         import traceback
-        tb_short = traceback.format_exc()[:200].replace("\n", " | ")
         error_msg = f"[Repository] CRITICAL: Error in list_question_sets: {str(e)}\n{traceback.format_exc()}"
         logger.error(error_msg)
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to load question sets: {str(e)} | TRACE: {tb_short}"
+            detail="Failed to load question sets due to an internal server error. Please try again later."
         )
 
 
 @router.get("/debug-auth")
-def debug_auth(current_user=Depends(get_current_hr)):
+@limiter.limit("60/minute")
+def debug_auth(request: Request, current_user=Depends(get_current_hr)):
     """Diagnostic endpoint to verify HR authentication state."""
+    if get_settings().env == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
     return {
         "success": True,
         "data": {
@@ -217,8 +223,9 @@ def debug_auth(current_user=Depends(get_current_hr)):
     }
 
 @router.get("/sets/{set_id}", response_model=QuestionSetDetail)
+@limiter.limit("60/minute")
 def get_question_set(
-    set_id: int,
+    request: Request, set_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_hr),
 ):
@@ -239,8 +246,9 @@ def get_question_set(
 
 
 @router.post("/sets", response_model=QuestionSetResponse, status_code=201)
+@limiter.limit("60/minute")
 def create_question_set(
-    payload: QuestionSetCreate,
+    request: Request, payload: QuestionSetCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_hr),
 ):
@@ -288,8 +296,9 @@ def create_question_set(
 
 
 @router.put("/sets/{set_id}", response_model=QuestionSetResponse)
+@limiter.limit("60/minute")
 def update_question_set(
-    set_id: int,
+    request: Request, set_id: int,
     payload: QuestionSetCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_hr),
@@ -334,8 +343,9 @@ def update_question_set(
 
 
 @router.delete("/sets/{set_id}", status_code=204)
+@limiter.limit("60/minute")
 def delete_question_set(
-    set_id: int,
+    request: Request, set_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_hr),
 ):

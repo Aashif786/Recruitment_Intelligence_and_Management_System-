@@ -62,7 +62,6 @@ def calculate_detailed_score(responses: List[Dict]) -> Dict:
             "overall": 0,
             "technical": 0,
             "behavioral": 0,
-            "clarity": 0,
             "depth": 0
         }
     
@@ -70,7 +69,6 @@ def calculate_detailed_score(responses: List[Dict]) -> Dict:
         "overall": [],
         "technical": [],
         "behavioral": [],
-        "clarity": [],
         "depth": []
     }
     
@@ -79,7 +77,6 @@ def calculate_detailed_score(responses: List[Dict]) -> Dict:
         scores["overall"].append(eval_data.get('overall', 5))
         scores["technical"].append(eval_data.get('accuracy', 5))
         scores["behavioral"].append(eval_data.get('relevance', 5))
-        scores["clarity"].append(eval_data.get('relevance', 5))  # Using relevance for clarity
         scores["depth"].append(eval_data.get('depth', 5))
     
     # Calculate averages
@@ -199,11 +196,6 @@ def generate_strengths_analysis(responses: List[Dict]) -> List[str]:
     high_depth_responses = [r for r in responses if r.get('evaluation', {}).get('depth', 0) >= 7]
     if len(high_depth_responses) >= len(responses) * 0.4:
         strengths.append("Demonstrates good technical depth in responses")
-    
-    # Analyze clarity
-    high_clarity_responses = [r for r in responses if r.get('evaluation', {}).get('clarity', 0) >= 7]
-    if len(high_clarity_responses) >= len(responses) * 0.4:
-        strengths.append("Communicates technical concepts clearly")
     
     # Check for examples
     responses_with_examples = 0

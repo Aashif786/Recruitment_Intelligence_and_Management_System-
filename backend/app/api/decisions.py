@@ -16,6 +16,8 @@ from app.core.timezone import get_ist_now
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/decisions", tags=["hiring decisions"])
+from fastapi import Request
+from app.core.rate_limiter import limiter
 
 
 class HireRequest(BaseModel):
@@ -23,8 +25,9 @@ class HireRequest(BaseModel):
     notes: Optional[str] = None
 
 @router.put("/applications/{application_id}/decide", response_model=HiringDecisionResponse)
+@limiter.limit("60/minute")
 def make_hiring_decision(
-    application_id: int,
+    request: Request, application_id: int,
     decision_data: HiringDecisionMake,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_hr),
@@ -99,8 +102,9 @@ def make_hiring_decision(
     return hiring_decision
 
 @router.post("/applications/{application_id}/hire")
+@limiter.limit("60/minute")
 async def hire_candidate(
-    application_id: int,
+    request: Request, application_id: int,
     hire_data: HireRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_hr),
@@ -222,8 +226,9 @@ async def hire_candidate(
     return {"status": "success", "message": "Candidate hired and offer letter generated and sent."}
 
 @router.get("/applications/{application_id}/decision")
+@limiter.limit("60/minute")
 def get_application_decision(
-    application_id: int,
+    request: Request, application_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -264,8 +269,9 @@ def get_application_decision(
     return decision
 
 @router.get("/pipeline")
+@limiter.limit("60/minute")
 def get_hiring_pipeline(
-    status_filter: str = None,
+    request: Request, status_filter: str = None,
     job_id: int = None,
     current_user: User = Depends(get_current_hr),
     db: Session = Depends(get_db)

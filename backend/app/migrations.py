@@ -240,9 +240,53 @@ def run_startup_migrations(engine: Engine):
             """))
             conn.commit()
             logger.info("Ensured global_settings table exists")
+            
+            # 0.1 Clean up deprecated columns
+            if "postgresql" in str(conn.engine.url):
+                try:
+                    conn.execute(text("ALTER TABLE interview_answers DROP COLUMN IF EXISTS clarity_score"))
+                    conn.execute(text("ALTER TABLE interview_answers DROP COLUMN IF EXISTS practicality_score"))
+                    logger.info("Migration completed: dropped deprecated columns clarity_score, practicality_score")
+                except Exception as e:
+                    logger.warning(f"Failed to drop deprecated columns: {e}")
         except Exception as e:
             _safe_rollback(conn)
             logger.warning(f"Failed to create global_settings table: {e}")
+
+        # 1.1 Extract Offers and Onboarding (Issue 5.1 Migration)
+        if "postgresql" in str(conn.engine.url):
+            try:
+                # Insert missing Offer records for all Applications
+                conn.execute(text("""
+                    INSERT INTO offers (application_id, offer_sent, offer_sent_date, offer_approval_status, offer_approved_by, offer_approved_at, offer_response_status, offer_response_date, offer_token, offer_short_id, offer_token_expiry, offer_token_used, offer_template_snapshot, offer_pdf_path, offer_accepted_ip, offer_accepted_user_agent, offer_email_status, offer_email_retry_count, reminder_sent_at)
+                    SELECT id, offer_sent, offer_sent_date, offer_approval_status, offer_approved_by, offer_approved_at, offer_response_status, offer_response_date, offer_token, offer_short_id, offer_token_expiry, offer_token_used, offer_template_snapshot, offer_pdf_path, offer_accepted_ip, offer_accepted_user_agent, offer_email_status, offer_email_retry_count, reminder_sent_at
+                    FROM applications
+                    ON CONFLICT (application_id) DO NOTHING
+                """))
+                
+                # Insert missing Onboarding records for all Applications
+                conn.execute(text("""
+                    INSERT INTO onboardings (application_id, joining_date, employee_id, id_card_url, onboarded_at)
+                    SELECT id, joining_date, employee_id, id_card_url, onboarded_at
+                    FROM applications
+                    ON CONFLICT (application_id) DO NOTHING
+                """))
+                
+                # Drop columns from applications
+                cols_to_drop = [
+                    "offer_sent", "offer_sent_date", "offer_approval_status", "offer_approved_by", "offer_approved_at",
+                    "offer_response_status", "offer_response_date", "offer_token", "offer_short_id", "offer_token_expiry",
+                    "offer_token_used", "offer_template_snapshot", "offer_pdf_path", "offer_accepted_ip", "offer_accepted_user_agent",
+                    "offer_email_status", "offer_email_retry_count", "reminder_sent_at",
+                    "joining_date", "employee_id", "id_card_url", "onboarded_at", "onboarding_approval_status"
+                ]
+                for col in cols_to_drop:
+                    conn.execute(text(f"ALTER TABLE applications DROP COLUMN IF EXISTS {col}"))
+                conn.commit()
+                logger.info("Migration completed: 5.1 Application table normalization successful")
+            except Exception as e:
+                _safe_rollback(conn)
+                logger.error(f"Migration error during 5.1 table normalization: {e}")
 
         # 1e. (question_sets table is created in step 0 above)
 

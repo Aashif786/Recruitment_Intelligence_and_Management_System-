@@ -512,8 +512,8 @@ class ResponseAnalyzer:
             reason = "repetition of the question" if is_repetition else "gibberish or non-meaningful input"
             logger.warning(f"Red flag: {reason} detected. Similarity: {similarity:.2f}")
             red_flag_res = {
-                "technical_accuracy": 0.0, "completeness": 0.0, "clarity": 0.0, 
-                "depth": 0.0, "practicality": 0.0, "overall": 0.0,
+                "technical_accuracy": 0.0, "completeness": 0.0, 
+                "depth": 0.0, "overall": 0.0,
                 "relevance": 0.0, "action_impact": 0.0,
                 "confidence_score": 1.0, # Certain it's a red flag
                 "strengths": [], "weaknesses": [f"Major red flag: Answer is a {reason}."],
@@ -538,7 +538,6 @@ class ResponseAnalyzer:
                     {{
                         "Relevance": [0-10],
                         "Action & Impact": [0-10],
-                        "Clarity": [0-10],
                         "Overall": [average],
                         "Strengths": [],
                         "Weaknesses": [],
@@ -557,7 +556,6 @@ class ResponseAnalyzer:
                         return {
                             "relevance": self._bound_score(parsed.get("Relevance", 0)),
                             "action_impact": self._bound_score(parsed.get("Action & Impact", 0)),
-                            "clarity": self._bound_score(parsed.get("Clarity", 0)),
                             "overall": self._bound_score(parsed.get("Overall", 0)),
                             "strengths": parsed.get("Strengths", []),
                             "weaknesses": parsed.get("Weaknesses", []),
@@ -575,7 +573,7 @@ class ResponseAnalyzer:
                     score = 10.0 if parsed and parsed.get("Correctness") == 10 else 0.0
                     return {
                         "overall": score, "technical_accuracy": score, "completeness": score,
-                        "clarity": 10.0, "depth": 0.0, "practicality": 0.0,
+                        "depth": 0.0,
                         "strengths": [parsed.get("Reason", "")] if parsed else [], "weaknesses": []
                     }
 
@@ -589,9 +587,7 @@ class ResponseAnalyzer:
                     {{
                         "Technical Accuracy": [0-10],
                         "Completeness": [0-10],
-                        "Clarity": [0-10],
                         "Depth": [0-10],
-                        "Practicality": [0-10],
                         "Overall": [average],
                         "Strengths": [],
                         "Weaknesses": [],
@@ -609,9 +605,7 @@ class ResponseAnalyzer:
                         return {
                             "technical_accuracy": self._bound_score(parsed.get("Technical Accuracy", 0)),
                             "completeness": self._bound_score(parsed.get("Completeness", 0)),
-                            "clarity": self._bound_score(parsed.get("Clarity", 0)),
                             "depth": self._bound_score(parsed.get("Depth", 0)),
-                            "practicality": self._bound_score(parsed.get("Practicality", 0)),
                             "overall": self._bound_score(parsed.get("Overall", 0)),
                             "strengths": parsed.get("Strengths", []),
                             "weaknesses": parsed.get("Weaknesses", []),
@@ -674,9 +668,7 @@ class ResponseAnalyzer:
         scores = {
             "technical_accuracy": 0,
             "completeness": 0,
-            "clarity": 0,
             "depth": 0,
-            "practicality": 0,
             "overall": 0,
             "strengths": [],
             "weaknesses": []
@@ -700,19 +692,9 @@ class ResponseAnalyzer:
                     scores["completeness"] = self._parse_score(line.split(":", 1)[1])
                 except:
                     pass
-            elif "clarity:" in line_lower:
-                try:
-                    scores["clarity"] = self._parse_score(line.split(":", 1)[1])
-                except:
-                    pass
             elif "depth:" in line_lower:
                 try:
                     scores["depth"] = self._parse_score(line.split(":", 1)[1])
-                except:
-                    pass
-            elif "practicality:" in line_lower:
-                try:
-                    scores["practicality"] = self._parse_score(line.split(":", 1)[1])
                 except:
                     pass
             elif "overall:" in line_lower:
@@ -734,32 +716,25 @@ class ResponseAnalyzer:
                 weakness_text = line.split(":", 1)[1].strip()
                 if weakness_text:
                     scores["weaknesses"].append(weakness_text)
-            elif strengths_found and line_lower and not line_lower.startswith(("technical", "completeness", "clarity", "depth", "practicality", "overall", "weaknesses")):
+            elif strengths_found and line_lower and not line_lower.startswith(("technical", "completeness", "depth", "overall", "weaknesses")):
                 scores["strengths"].append(line.strip())
-            elif weaknesses_found and line_lower and not line_lower.startswith(("technical", "completeness", "clarity", "depth", "practicality", "overall", "strengths")):
+            elif weaknesses_found and line_lower and not line_lower.startswith(("technical", "completeness", "depth", "overall", "strengths")):
                 scores["weaknesses"].append(line.strip())
         
         # Adjust based on word count (80-200 words ideal for technical answers)
         if 80 <= word_count <= 200:
             scores["completeness"] = min(10, scores["completeness"] + 1)
             scores["overall"] = min(10, (sum([scores["technical_accuracy"], scores["completeness"], 
-                                            scores["clarity"], scores["depth"], scores["practicality"]]) / 5))
+                                            scores["depth"]]) / 3))
         elif word_count < 50:
             scores["completeness"] = max(0, scores["completeness"] - 2)
             scores["overall"] = max(0, scores["overall"] - 1)
-        elif word_count > 300:
-            scores["clarity"] = max(0, scores["clarity"] - 1)
-        
-        # Adjust based on metrics
-        if metrics["has_examples"]:
-            scores["practicality"] = min(10, scores["practicality"] + 1)
         
         if metrics["has_technical_terms"]:
             scores["technical_accuracy"] = min(10, scores["technical_accuracy"] + 0.5)
         
         # Ensure overall is average of categories
-        category_scores = [scores["technical_accuracy"], scores["completeness"], 
-                            scores["clarity"], scores["depth"], scores["practicality"]]
+        category_scores = [scores["technical_accuracy"], scores["completeness"], scores["depth"]]
         scores["overall"] = sum(category_scores) / len(category_scores)
         
         # Raise error if everything is 0 to trigger overall fallback safety layouts
@@ -778,7 +753,6 @@ class ResponseAnalyzer:
         scores = {
             "relevance": 0.0,
             "action_impact": 0.0,
-            "clarity": 0.0,
             "overall": 0.0,
             "strengths": [],
             "weaknesses": []
@@ -797,9 +771,6 @@ class ResponseAnalyzer:
                 except: pass
             elif "action" in line_lower and "impact" in line_lower:
                 try: scores["action_impact"] = self._parse_score(line.split(":", 1)[1])
-                except: pass
-            elif "clarity:" in line_lower:
-                try: scores["clarity"] = self._parse_score(line.split(":", 1)[1])
                 except: pass
             elif "overall:" in line_lower:
                 try: scores["overall"] = self._parse_score(line.split(":", 1)[1])
@@ -823,14 +794,7 @@ class ResponseAnalyzer:
             elif weaknesses_found and line_lower and not line_lower.startswith(("communication", "coherence", "empathy", "situational", "self", "overall", "strengths")):
                 scores["weaknesses"].append(line.strip())
         
-        # Word count adjustments
-        if word_count < 50:
-            scores["clarity"] = max(0, scores["clarity"] - 2)
-            scores["overall"] = max(0, scores["overall"] - 1)
-        elif 80 <= word_count <= 250:
-            pass # Keep AI scores intact
-        
-        category_scores = [scores["relevance"], scores["action_impact"], scores["clarity"]]
+        category_scores = [scores["relevance"], scores["action_impact"]]
         scores["overall"] = sum(category_scores) / len(category_scores)
         
         for key in scores:
@@ -894,9 +858,7 @@ class ResponseAnalyzer:
         return {
             "technical_accuracy": final_score,
             "completeness": final_score,
-            "clarity": final_score,
             "depth": final_score,
-            "practicality": final_score,
             "overall": final_score,
             "strengths": strengths[:2],
             "weaknesses": weaknesses[:2]
@@ -913,7 +875,6 @@ class ResponseAnalyzer:
         return {
             "relevance": base_score,
             "action_impact": base_score,
-            "clarity": base_score,
             "overall": base_score,
             "strengths": ["Answered the question"] if word_count >= 50 else [],
             "weaknesses": ["Could provide more detail"] if word_count < 100 else []

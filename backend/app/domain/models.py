@@ -163,17 +163,173 @@ class Application(Base):
     candidate_skills = relationship("CandidateSkill", cascade="all, delete-orphan")
     interview_sessions = relationship("InterviewSession", cascade="all, delete-orphan")  # Legacy — kept for migration safety
 
-    # Onboarding fields
+    # Relationships (additional)
+    offer = relationship("Offer", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    onboarding = relationship("Onboarding", back_populates="application", uselist=False, cascade="all, delete-orphan")
+    
+    # Backward compatibility properties for schemas
+    @property
+    def offer_sent(self): return self.offer.offer_sent if self.offer else False
+    @offer_sent.setter
+    def offer_sent(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_sent = value
+        
+    @property
+    def offer_sent_date(self): return self.offer.offer_sent_date if self.offer else None
+    @offer_sent_date.setter
+    def offer_sent_date(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_sent_date = value
+        
+    @property
+    def offer_approval_status(self): return self.offer.offer_approval_status if self.offer else 'pending'
+    @offer_approval_status.setter
+    def offer_approval_status(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_approval_status = value
+        
+    @property
+    def offer_response_status(self): return self.offer.offer_response_status if self.offer else 'pending'
+    @offer_response_status.setter
+    def offer_response_status(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_response_status = value
+        
+    @property
+    def offer_response_date(self): return self.offer.offer_response_date if self.offer else None
+    @offer_response_date.setter
+    def offer_response_date(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_response_date = value
+        
+    @property
+    def offer_token(self): return self.offer.offer_token if self.offer else None
+    @offer_token.setter
+    def offer_token(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_token = value
+        
+    @property
+    def offer_short_id(self): return self.offer.offer_short_id if self.offer else None
+    @offer_short_id.setter
+    def offer_short_id(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_short_id = value
+        
+    @property
+    def offer_token_used(self): return self.offer.offer_token_used if self.offer else False
+    @offer_token_used.setter
+    def offer_token_used(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_token_used = value
+        
+    @property
+    def offer_token_expiry(self): return self.offer.offer_token_expiry if self.offer else None
+    @offer_token_expiry.setter
+    def offer_token_expiry(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_token_expiry = value
+        
+    @property
+    def offer_pdf_path(self): return self.offer.offer_pdf_path if self.offer else None
+    @offer_pdf_path.setter
+    def offer_pdf_path(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_pdf_path = value
+        
+    @property
+    def offer_template_snapshot(self): return self.offer.offer_template_snapshot if self.offer else None
+    @offer_template_snapshot.setter
+    def offer_template_snapshot(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_template_snapshot = value
+        
+    @property
+    def offer_email_status(self): return self.offer.offer_email_status if self.offer else 'pending'
+    @offer_email_status.setter
+    def offer_email_status(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_email_status = value
+        
+    @property
+    def offer_email_retry_count(self): return self.offer.offer_email_retry_count if self.offer else 0
+    @offer_email_retry_count.setter
+    def offer_email_retry_count(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_email_retry_count = value
+        
+    @property
+    def joining_date(self): return self.onboarding.joining_date if self.onboarding else None
+    @joining_date.setter
+    def joining_date(self, value):
+        if not self.onboarding: self.onboarding = Onboarding()
+        self.onboarding.joining_date = value
+        
+    @property
+    def employee_id(self): return self.onboarding.employee_id if self.onboarding else None
+    @employee_id.setter
+    def employee_id(self, value):
+        if not self.onboarding: self.onboarding = Onboarding()
+        self.onboarding.employee_id = value
+        
+    @property
+    def id_card_url(self): return self.onboarding.id_card_url if self.onboarding else None
+    @id_card_url.setter
+    def id_card_url(self, value):
+        if not self.onboarding: self.onboarding = Onboarding()
+        self.onboarding.id_card_url = value
+        
+    @property
+    def onboarded_at(self): return self.onboarding.onboarded_at if self.onboarding else None
+    @onboarded_at.setter
+    def onboarded_at(self, value):
+        if not self.onboarding: self.onboarding = Onboarding()
+        self.onboarding.onboarded_at = value
+        
+    @property
+    def offer_approved_by(self): return self.offer.offer_approved_by if self.offer else None
+    @offer_approved_by.setter
+    def offer_approved_by(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_approved_by = value
+        
+    @property
+    def offer_approved_at(self): return self.offer.offer_approved_at if self.offer else None
+    @offer_approved_at.setter
+    def offer_approved_at(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_approved_at = value
+        
+    @property
+    def offer_accepted_ip(self): return self.offer.offer_accepted_ip if self.offer else None
+    @offer_accepted_ip.setter
+    def offer_accepted_ip(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_accepted_ip = value
+        
+    @property
+    def offer_accepted_user_agent(self): return self.offer.offer_accepted_user_agent if self.offer else None
+    @offer_accepted_user_agent.setter
+    def offer_accepted_user_agent(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.offer_accepted_user_agent = value
+
+    @property
+    def reminder_sent_at(self): return self.offer.reminder_sent_at if self.offer else None
+    @reminder_sent_at.setter
+    def reminder_sent_at(self, value):
+        if not self.offer: self.offer = Offer()
+        self.offer.reminder_sent_at = value
+
+
+class Offer(Base):
+    __tablename__ = "offers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey('applications.id', ondelete="CASCADE"), nullable=False, unique=True, index=True)
     offer_sent = Column(Boolean, default=False)
     offer_sent_date = Column(DateTime)
-    joining_date = Column(DateTime)
-    onboarding_approval_status = Column(String(20), default='pending') # Legacy — Repurposing to offer_approval_status
-    
-    # Persistent Email Tracking
-    email_sent_at = Column(DateTime, nullable=True)
-    email_status = Column(String(20), default='pending') # 'pending', 'sent', 'failed'
-    
-    # Enhanced Onboarding V2
     offer_approval_status = Column(String(20), default='pending') # 'pending', 'approved', 'rejected'
     offer_approved_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     offer_approved_at = Column(DateTime)
@@ -187,18 +343,25 @@ class Application(Base):
     offer_pdf_path = Column(String(500))
     offer_accepted_ip = Column(String(50))
     offer_accepted_user_agent = Column(Text)
-    offer_email_status = Column(String(20), default='pending') # 'pending', 'sent', 'failed'
+    offer_email_status = Column(String(20), default='pending')
     offer_email_retry_count = Column(Integer, default=0)
     reminder_sent_at = Column(DateTime)
+    
+    application = relationship("Application", back_populates="offer")
+    approver = relationship("User", foreign_keys=[offer_approved_by])
 
-    # Post-Joining & ID Card (New Phase)
-    # Using candidate_photo_path exclusively for ID card photo
+
+class Onboarding(Base):
+    __tablename__ = "onboardings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey('applications.id', ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    joining_date = Column(DateTime)
     employee_id = Column(String(50), unique=True, index=True)
     id_card_url = Column(String(500))
     onboarded_at = Column(DateTime)
     
-    # Relationships (additional)
-    approver = relationship("User", foreign_keys=[offer_approved_by])
+    application = relationship("Application", back_populates="onboarding")
 
 
 class ApplicationStage(Base):
@@ -346,9 +509,7 @@ class InterviewAnswer(Base):
     skill_relevance_score = Column(Float)
     technical_score = Column(Float, nullable=True)
     completeness_score = Column(Float, nullable=True)
-    clarity_score = Column(Float, nullable=True)
     depth_score = Column(Float, nullable=True)
-    practicality_score = Column(Float, nullable=True)
     ai_used = Column(Boolean, default=False)
     fallback_used = Column(Boolean, default=False)
     confidence_score = Column(Float, nullable=True)

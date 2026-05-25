@@ -16,9 +16,12 @@ from app.core.storage import get_signed_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+from fastapi import Request
+from app.core.rate_limiter import limiter
 
 @router.get("/config/skills")
-def get_skills_config():
+@limiter.limit("60/minute")
+def get_skills_config(request: Request):
     """Expose the canonical skill categories from the interview engine (Point 1)"""
     try:
         from interview_process.config import SKILL_CATEGORIES
@@ -29,8 +32,9 @@ def get_skills_config():
         return ["backend", "frontend", "fullstack", "devops", "hr"]
 
 @router.get("/dashboard")
+@limiter.limit("60/minute")
 def get_dashboard_analytics(
-    job_id: Optional[int] = None,
+    request: Request, job_id: Optional[int] = None,
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
     current_user: User = Depends(get_current_hr),
@@ -75,8 +79,9 @@ def get_dashboard_analytics(
 
 
 @router.get("/reports")
+@limiter.limit("60/minute")
 def get_interview_reports(
-    job_id: Optional[int] = None,
+    request: Request, job_id: Optional[int] = None,
     status: Optional[str] = None,
     experience: Optional[str] = None,
     skill: Optional[str] = None,
@@ -300,13 +305,10 @@ def get_interview_reports(
                             if q_type_lower == "behavioral":
                                 evaluation.setdefault("relevance", float(ans.technical_score or ans.skill_relevance_score or base_overall))
                                 evaluation.setdefault("action_impact", float(ans.completeness_score or base_overall))
-                                evaluation.setdefault("clarity", float(ans.clarity_score or base_overall))
                             elif q_type_lower != "aptitude":
                                 evaluation.setdefault("technical_accuracy", float(ans.technical_score or ans.skill_relevance_score or base_overall))
                                 evaluation.setdefault("completeness", float(ans.completeness_score or base_overall))
-                                evaluation.setdefault("clarity", float(ans.clarity_score or base_overall))
                                 evaluation.setdefault("depth", float(ans.depth_score or base_overall))
-                                evaluation.setdefault("practicality", float(ans.practicality_score or base_overall))
 
                         q_type = (q.question_type or "technical").lower()
                         entry = {
@@ -464,8 +466,9 @@ def get_interview_reports(
 
 
 @router.get("/interviews")
+@limiter.limit("60/minute")
 def get_filtered_interviews(
-    candidate_name: Optional[str] = None,
+    request: Request, candidate_name: Optional[str] = None,
     candidate_email: Optional[str] = None,
     test_id: Optional[str] = None,
     role_applied: Optional[str] = None,

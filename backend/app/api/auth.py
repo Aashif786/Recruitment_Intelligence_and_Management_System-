@@ -25,6 +25,9 @@ from app.core.rate_limiter import limiter
 @router.get("/debug/data-health")
 def data_health(request: Request, db: Session = Depends(get_db)):
     """Phase 9: Enhanced Safety & Monitoring Debugging Endpoint - Admin only"""
+    if settings.env == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
+        
     from app.core.auth import get_current_admin
     try:
         user = get_current_user(request, db)
@@ -225,9 +228,7 @@ def login(request: Request, response: Response, credentials: UserLogin, db: Sess
     access_token_expires = timedelta(minutes=settings.jwt_expiration_minutes)
     token_data = {
         "sub": str(user.id),
-        "email": user.email,
-        "role": user.role,
-        "full_name": user.full_name
+        "role": user.role
     }
     access_token = create_access_token(token_data, access_token_expires)
 

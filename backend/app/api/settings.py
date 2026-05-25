@@ -6,6 +6,8 @@ from app.domain.schemas import GlobalSettingsUpdate, GlobalSettingsResponse
 from app.core.auth import get_current_hr
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+from fastapi import Request
+from app.core.rate_limiter import limiter
 
 
 def ensure_global_settings_table(db: Session) -> None:
@@ -14,8 +16,9 @@ def ensure_global_settings_table(db: Session) -> None:
 
 
 @router.get("", response_model=GlobalSettingsResponse)
+@limiter.limit("60/minute")
 def get_settings(
-    db: Session = Depends(get_db)
+    request: Request, db: Session = Depends(get_db)
 ):
     """Fetch global settings (public - used for branding on login/register pages)."""
     ensure_global_settings_table(db)
@@ -36,8 +39,9 @@ def get_settings(
     }
 
 @router.post("", response_model=GlobalSettingsResponse)
+@limiter.limit("60/minute")
 def update_settings(
-    settings_data: GlobalSettingsUpdate,
+    request: Request, settings_data: GlobalSettingsUpdate,
     current_user: User = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):

@@ -27,10 +27,10 @@ export function isInterviewNotCompleted(report: {
 }
 
 export function isProgressionAllZeros(
-  lineData: Array<{ Tech?: number; Comm?: number }>
+  lineData: Array<{ Tech?: number }>
 ): boolean {
   if (!lineData.length) return true
-  return lineData.every((d) => (d.Tech ?? 0) === 0 && (d.Comm ?? 0) === 0)
+  return lineData.every((d) => (d.Tech ?? 0) === 0)
 }
 
 export function isRadarAllZeros(radarData: Array<{ A?: number }>): boolean {

@@ -955,10 +955,10 @@ export default function InterviewSession({ sessionId, token }: InterviewSessionP
           <ShieldAlert className="mx-auto w-16 h-16 text-destructive mb-6" />
           <CardTitle className="text-3xl font-black text-destructive mb-4">Session Terminated</CardTitle>
           <p className="text-slate-600 font-medium mb-4">
-            {terminationReason || "This interview has been deactivated due to security violations."}
+            {terminationReason || "This interview has been deactivated."}
           </p>
           <p className="text-xs text-red-500/70 font-mono mb-8 uppercase tracking-widest">Access Key Invalidated</p>
-          <Button variant="outline" className="w-full h-14 rounded-2xl font-bold shadow-lg" onClick={() => window.location.href = '/calrims/'}>Return to Safety</Button>
+          <Button variant="outline" className="w-full h-14 rounded-2xl font-bold shadow-lg" onClick={() => window.location.href = '/calrims/'}>Return to Home</Button>
         </Card>
       </div>
     );

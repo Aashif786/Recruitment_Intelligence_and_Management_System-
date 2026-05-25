@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 router = APIRouter(prefix="/api/support", tags=["Support"])
+from app.core.rate_limiter import limiter
 
 _SUPPORT_SUBMISSION_WINDOW_SECONDS = 5 * 60
 _SUPPORT_SUBMISSION_THRESHOLD = 3
@@ -62,6 +63,7 @@ def _check_support_rate_limit(key: str) -> Optional[int]:
 
 
 @router.post("/ticket")
+@limiter.limit("60/minute")
 def create_support_ticket(payload: dict, request: Request, db: Session = Depends(get_db)):
     """
     Candidate support portal ticket endpoint (non-breaking add).
@@ -123,9 +125,10 @@ def create_support_ticket(payload: dict, request: Request, db: Session = Depends
     # Try finding by offer_token first (standard onboarding flow)
     # Candidates in the onboarding stage use their plain offer_token as their access key.
     # Checking this first avoids executing slow bcrypt checks for historical interviews.
-    application = db.query(Application).filter(
+    from app.domain.models import Offer
+    application = db.query(Application).join(Offer).filter(
         Application.candidate_email == email,
-        Application.offer_token == access_key  # Candidates use their offer token as key
+        Offer.offer_token == access_key  # Candidates use their offer token as key
     ).first()
 
     if not application:

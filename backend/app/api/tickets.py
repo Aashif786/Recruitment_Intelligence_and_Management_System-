@@ -28,10 +28,13 @@ from app.core.timezone import get_ist_now
 from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/api/tickets", tags=["Tickets"])
+from fastapi import Request
+from app.core.rate_limiter import limiter
 
 @router.post("", response_model=InterviewIssueResponse)
+@limiter.limit("60/minute")
 def report_issue(
-    issue: InterviewIssueCreate,
+    request: Request, issue: InterviewIssueCreate,
     interview_session: Interview = Depends(get_current_interview_any_status),
     db: Session = Depends(get_db),
 ):
@@ -104,7 +107,8 @@ def report_issue(
     return new_issue
 
 @router.post("/grievance", response_model=InterviewIssueResponse)
-def report_grievance(issue: GeneralGrievanceCreate, db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+def report_grievance(request: Request, issue: GeneralGrievanceCreate, db: Session = Depends(get_db)):
     # Uniform error response to mitigate email enumeration/information disclosure
     generic_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -176,7 +180,8 @@ def report_grievance(issue: GeneralGrievanceCreate, db: Session = Depends(get_db
     return new_issue
 
 @router.post("/feedback", response_model=InterviewFeedbackResponse)
-def submit_feedback(feedback: InterviewFeedbackCreate, db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+def submit_feedback(request: Request, feedback: InterviewFeedbackCreate, db: Session = Depends(get_db)):
     # Verify interview exists
     interview = db.query(Interview).filter(Interview.id == feedback.interview_id).first()
     if not interview:
@@ -198,8 +203,9 @@ def submit_feedback(feedback: InterviewFeedbackCreate, db: Session = Depends(get
     return new_feedback
 
 @router.get("/feedback", response_model=None)
+@limiter.limit("60/minute")
 def list_feedback(
-    skip: int = 0,
+    request: Request, skip: int = 0,
     limit: int = 50,
     current_user: User = Depends(get_current_hr),
     db: Session = Depends(get_db),
@@ -241,8 +247,9 @@ def list_feedback(
     return {"items": result, "total": total}
 
 @router.get("/count")
+@limiter.limit("60/minute")
 def get_ticket_count(
-    current_user: User = Depends(get_current_hr),
+    request: Request, current_user: User = Depends(get_current_hr),
     db: Session = Depends(get_db)
 ):
     """Lightweight endpoint returning just the pending ticket count for sidebar badges."""
@@ -257,8 +264,9 @@ def get_ticket_count(
     return {"count": count}
 
 @router.get("", response_model=None)
+@limiter.limit("60/minute")
 def get_tickets(
-    status: str = 'pending',
+    request: Request, status: str = 'pending',
     skip: int = 0,
     limit: int = 50,
     current_user: User = Depends(get_current_hr),
@@ -317,8 +325,9 @@ def get_tickets(
     return {"items": tickets, "total": total}
 
 @router.put("/{ticket_id}/resolve", response_model=InterviewIssueResponse)
+@limiter.limit("60/minute")
 def resolve_ticket(
-    ticket_id: int,
+    request: Request, ticket_id: int,
     resolution: InterviewIssueResolve,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_hr),

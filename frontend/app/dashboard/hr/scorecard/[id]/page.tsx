@@ -37,6 +37,8 @@ interface InterviewReport {
     strengths?: string
     weaknesses?: string
     status?: string
+    ai_used?: boolean
+    fallback_used?: boolean
 }
 
 interface ApplicationScorecard {
@@ -175,11 +177,21 @@ export default function CandidateScorecardPage() {
 
                     {/* AI Insights & Feedback */}
                     <Card className="border-border shadow-md">
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle className="text-xl flex items-center gap-2">
                                 <Info className="w-5 h-5 text-primary" />
                                 AI Evaluation Feedback
                             </CardTitle>
+                            {report && report.fallback_used && (
+                                <Badge variant="outline" className="text-amber-500 border-amber-500 bg-amber-500/10 text-xs font-bold px-2 py-0.5">
+                                    Heuristic Fallback (AI Error)
+                                </Badge>
+                            )}
+                            {report && !report.ai_used && !report.fallback_used && (
+                                <Badge variant="outline" className="text-muted-foreground text-xs font-bold px-2 py-0.5">
+                                    Manual / No AI
+                                </Badge>
+                            )}
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {report ? (

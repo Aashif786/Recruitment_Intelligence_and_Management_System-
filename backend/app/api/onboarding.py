@@ -92,7 +92,8 @@ def log_audit(db: Session, action: str, resource_id: int, user_id: Optional[int]
 
 async def get_application_by_short_id(db: Session, short_id: str, lock=False):
     """Secure lookup: short_id -> Application."""
-    query = db.query(Application).filter(Application.offer_short_id == short_id)
+    from app.domain.models import Offer
+    query = db.query(Application).join(Offer).filter(Offer.offer_short_id == short_id)
     if lock:
         query = query.with_for_update()
     return query.first()
@@ -547,7 +548,8 @@ async def process_offer_email(application_id: int, storage_path: str, company_na
 async def get_offer_preview(request: Request, token: str, db: Session = Depends(get_db)):
     """Public preview with UUID token support & rate limiting."""
     rate_limit(request.client.host if request.client else "unknown")
-    application = db.query(Application).filter(Application.offer_token == token).first()
+    from app.domain.models import Offer
+    application = db.query(Application).join(Offer).filter(Offer.offer_token == token).first()
     if not application:
         raise HTTPException(status_code=404, detail="Offer not found")
     
@@ -653,11 +655,12 @@ def check_onboarding_reminders(background_tasks: BackgroundTasks, db: Session = 
     end_of_target = datetime.combine(target_date, datetime.max.time())
 
     # Find candidates who accepted offer and join in exactly 7 days
-    candidates = db.query(Application).filter(
+    from app.domain.models import Onboarding, Offer
+    candidates = db.query(Application).join(Onboarding).outerjoin(Offer).filter(
         Application.status.in_(["accepted"]),
-        Application.joining_date >= start_of_target,
-        Application.joining_date <= end_of_target,
-        Application.reminder_sent_at == None
+        Onboarding.joining_date >= start_of_target,
+        Onboarding.joining_date <= end_of_target,
+        Offer.reminder_sent_at == None
     ).all()
     
     reminders_sent = 0
@@ -774,7 +777,8 @@ async def respond_to_offer(request: Request, response_req: OfferResponseRequest,
     rate_limit(request.client.host if request.client else "unknown")
     
     # Use offer_token (UUID) lookup with ROW LOCKING
-    application = db.query(Application).filter(Application.offer_token == response_req.token).with_for_update().first()
+    from app.domain.models import Offer
+    application = db.query(Application).join(Offer).filter(Offer.offer_token == response_req.token).with_for_update().first()
     if not application:
         raise HTTPException(status_code=404, detail="Offer token not found")
     
@@ -949,10 +953,11 @@ def check_candidate_arrivals(db: Session = Depends(get_db)):
     end_of_day = datetime.combine(today, datetime.max.time())
 
     # Find candidates who accepted offer and join today
-    candidates = db.query(Application).filter(
+    from app.domain.models import Onboarding
+    candidates = db.query(Application).join(Onboarding).filter(
         Application.status == "accepted",
-        Application.joining_date >= start_of_day,
-        Application.joining_date <= end_of_day
+        Onboarding.joining_date >= start_of_day,
+        Onboarding.joining_date <= end_of_day
     ).all()
     
     onboarded_count = 0

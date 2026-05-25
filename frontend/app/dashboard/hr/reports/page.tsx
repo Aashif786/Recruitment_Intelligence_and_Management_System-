@@ -96,9 +96,7 @@ interface Evaluation {
   self_awareness?: number
   technical_accuracy?: number
   completeness?: number
-  clarity?: number
   depth?: number
-  practicality?: number
   strengths?: string[]
   weaknesses?: string[]
 }
@@ -296,8 +294,8 @@ export default function ReportsPage() {
 
   const reports = useMemo(() => {
     const processed = rawReports.map(report => {
-      let techSum = 0, behSum = 0, commSum = 0;
-      let techCount = 0, behCount = 0, commCount = 0;
+      let techSum = 0, behSum = 0;
+      let techCount = 0, behCount = 0;
 
       const allQ = [...(report?.question_evaluations || []), ...(report?.aptitude_question_evaluations || [])];
 
@@ -312,11 +310,6 @@ export default function ReportsPage() {
           techSum += score;
           techCount++;
         }
-
-        if (q?.evaluation?.clarity !== undefined) {
-          commSum += q.evaluation.clarity;
-          commCount++;
-        }
       });
 
       // Aptitude Calculation
@@ -329,7 +322,6 @@ export default function ReportsPage() {
         tech_score: techCount > 0 ? techSum / techCount : report?.tech_score,
         behavioral_score: behCount > 0 ? behSum / behCount : report?.behavioral_score,
         aptitude_score: aptScore,
-        comm_score: commCount > 0 ? commSum / commCount : report?.comm_score,
       };
     });
 
@@ -499,23 +491,19 @@ export default function ReportsPage() {
   // Chart Data for Report Modal
   const radarData = useMemo(() => {
     if (!viewingReport) return [];
-    let tech = 0, comm = 1, depthScore = 0, completenessScore = 0, practicalityScore = 0;
+    let tech = 0, depthScore = 0, completenessScore = 0;
     let count = viewingReport.question_evaluations?.length || 1;
 
     viewingReport.question_evaluations?.forEach(q => {
       tech += q.evaluation?.technical_accuracy || 0;
-      comm += q.evaluation?.clarity || 0;
       depthScore += q.evaluation?.depth || 0;
       completenessScore += q.evaluation?.completeness || 0;
-      practicalityScore += q.evaluation?.practicality || 0;
     });
 
     return [
       { subject: 'Technical', A: tech / count, fullMark: 10 },
-      { subject: 'Clarity', A: comm / count, fullMark: 10 },
       { subject: 'Depth', A: depthScore / count, fullMark: 10 },
       { subject: 'Completeness', A: completenessScore / count, fullMark: 10 },
-      { subject: 'Practicality', A: practicalityScore / count, fullMark: 10 },
     ];
   }, [viewingReport]);
 
@@ -524,7 +512,6 @@ export default function ReportsPage() {
     return viewingReport.question_evaluations?.map((q) => ({
       name: `Q${(q as any).question_number || '?'}`,
       Tech: q.evaluation?.technical_accuracy || 0,
-      Comm: q.evaluation?.clarity || 0,
     })) || [];
   }, [viewingReport]);
 
@@ -719,7 +706,7 @@ export default function ReportsPage() {
                 <div className="space-y-4">
                   <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Evaluation Scores</h4>
                   {/* Evaluation Details */}
-                  <div className={`grid grid-cols-2 ${selectedQuestion.question_type === 'behavioral' ? 'md:grid-cols-3' : 'md:grid-cols-5'} gap-4`}>
+                  <div className={`grid grid-cols-2 ${selectedQuestion.question_type === 'behavioral' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
                     {(() => {
                       const na = isAnswerEmpty(selectedQuestion.answer)
                       const ev = selectedQuestion.evaluation ?? {}
@@ -727,15 +714,12 @@ export default function ReportsPage() {
                         <>
                           <MetricCard title="Relevance" score={ev.relevance ?? ev.communication ?? ev.technical_accuracy ?? 0} notAvailable={na} />
                           <MetricCard title="Action & Impact" score={ev.action_impact ?? ev.situational_handling ?? ev.completeness ?? 0} notAvailable={na} />
-                          <MetricCard title="Clarity" score={ev.clarity ?? ev.coherence ?? 0} notAvailable={na} />
                         </>
                       ) : (
                         <>
                           <MetricCard title="Technical Accuracy" score={ev.technical_accuracy ?? 0} notAvailable={na} />
                           <MetricCard title="Completeness" score={ev.completeness ?? 0} notAvailable={na} />
-                          <MetricCard title="Clarity" score={ev.clarity ?? 0} notAvailable={na} />
                           <MetricCard title="Depth" score={ev.depth ?? 0} notAvailable={na} />
-                          <MetricCard title="Practicality" score={ev.practicality ?? 0} notAvailable={na} />
                         </>
                       )
                     })()}
@@ -1705,18 +1689,6 @@ export default function ReportsPage() {
                       <Video className="h-5 w-5" />
                       Intelligent Interview Monitoring Timeline
                     </h3>
-                    {viewingReport.video_url && (
-                      <a
-                        href={viewingReport.video_url?.startsWith('http') ? viewingReport.video_url : `${API_BASE_URL}${viewingReport.video_url}`}
-                        download={`interview_${viewingReport.id}_recording.webm`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 px-3 py-1.5 rounded-lg"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        Download Full Recording
-                      </a>
-                    )}
                   </div>
                   {viewingReport.interview_id ? (
                     <MonitoringReviewer
@@ -1792,7 +1764,7 @@ export default function ReportsPage() {
                       )}
                     </div>
 
-                    {/* Chart 2: Tech vs Comm Line */}
+                    {/* Chart 2: Tech Progression Line */}
                     <div className="bg-card border rounded-xl p-4 h-[250px] shadow-sm flex flex-col items-center">
                       <span className="text-sm font-semibold text-muted-foreground w-full text-left mb-2">Progression</span>
                       {progressionShowsPlaceholder ? (
@@ -1807,7 +1779,6 @@ export default function ReportsPage() {
                             <YAxis domain={[0, 10]} tick={{ fill: 'currentColor', fontSize: 11 }} axisLine={false} tickLine={false} />
                             <RechartsTooltip contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                             <Line type="monotone" dataKey="Tech" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4 }} />
-                            <Line type="monotone" dataKey="Comm" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
                           </LineChart>
                         </ResponsiveContainer>
                       )}

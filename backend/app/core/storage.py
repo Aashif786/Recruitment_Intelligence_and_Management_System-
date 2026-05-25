@@ -91,6 +91,31 @@ def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> Optional[s
             logger.warning(f"STORAGE: Failed to get signed URL from cloud: {e}")
     return None
 
+def get_signed_urls(bucket: str, paths: List[str], expires_in: int = 3600) -> dict:
+    if not paths:
+        return {}
+    client = get_supabase_client()
+    result_map = {}
+    if client:
+        try:
+            # We must group by actual bucket after resolution
+            bucket_groups = {}
+            for p in paths:
+                b, resolved_p = resolve_bucket_and_path(bucket, p)
+                bucket_groups.setdefault(b, []).append((p, resolved_p))
+                
+            for b, path_pairs in bucket_groups.items():
+                resolved_paths = [rp for _, rp in path_pairs]
+                res = client.storage.from_(b).create_signed_urls(resolved_paths, expires_in)
+                if isinstance(res, list):
+                    for i, item in enumerate(res):
+                        if not item.get("error"):
+                            orig_path = path_pairs[i][0]
+                            result_map[orig_path] = item.get("signedURL") or item.get("signedUrl")
+        except Exception as e:
+            logger.warning(f"STORAGE: Failed to get signed URLs from cloud: {e}")
+    return result_map
+
 def get_public_url(bucket: str, path: str) -> Optional[str]:
     if not path:
         return None

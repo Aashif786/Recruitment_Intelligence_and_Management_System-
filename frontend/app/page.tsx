@@ -886,7 +886,7 @@ export default function Home() {
                       </li>
                       <li className="flex items-start gap-2">
                         <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />{" "}
-                        Objective evaluation of communication clarity.
+                        Objective evaluation of candidate reasoning.
                       </li>
                       <li className="flex items-start gap-2">
                         <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />{" "}
@@ -977,7 +977,7 @@ export default function Home() {
                 <ul className="space-y-3 mb-8">
                   <ListItem text="Apply once, reuse your interview signal across roles." />
                   <ListItem text="Answer practical, scenario-based questions." />
-                  <ListItem text="Get evaluated on clarity, reasoning, and depth." />
+                  <ListItem text="Get evaluated on technical accuracy, reasoning, and depth." />
                   <ListItem text="Stay in control with transparent, structured feedback." />
                 </ul>
                 <Link href="/jobs">

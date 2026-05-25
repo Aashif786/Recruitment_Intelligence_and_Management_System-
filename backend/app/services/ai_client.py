@@ -19,16 +19,14 @@ def is_ai_unavailable_response(content: str | None) -> bool:
 
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
-# Bleach is not installed - using native regex for sanitization (see sanitize_content)
+import nh3
 
 def sanitize_content(text: str) -> str:
     """Removes potential scripts or malicious HTML from AI responses."""
     if not text:
         return ""
-    # Remove script tags and common event handlers
-    clean = re.sub(r'<script.*?>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    clean = re.sub(r'on\w+=".*?"', '', clean, flags=re.IGNORECASE)
-    return clean
+    # Use nh3 (Mozilla's modern HTML sanitizer) to prevent SSRF/XSS from AI payloads
+    return nh3.clean(text)
 
 class AIClient:
     def __init__(self):

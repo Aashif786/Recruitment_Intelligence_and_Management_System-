@@ -9,8 +9,8 @@ settings = get_settings()
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
-    pool_size=10,         # Scalable pool size
-    max_overflow=20,
+    pool_size=3,         # Lowered to prevent connection exhaustion with multiple workers
+    max_overflow=5,
     pool_recycle=300,    # Recycle connections every 5 minutes (ideal for Supabase/PG poolers)
     echo=settings.debug
 )

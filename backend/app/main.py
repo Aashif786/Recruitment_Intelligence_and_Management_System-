@@ -43,8 +43,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Callable, Any
+import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 
 from app.core.auth import hash_password
 from app.core.config import get_settings
@@ -73,7 +75,15 @@ logger = logging.getLogger(__name__)
 
 settings.validate_config()
 
-Base.metadata.create_all(bind=engine)
+# Schema creation: guarded to primary worker only in multi-process deployments.
+# Production deployments should prefer Alembic migrations ('alembic upgrade head').
+if os.environ.get("WORKER_ID", "0") == "0":
+    Base.metadata.create_all(bind=engine)
+    if settings.env == "production":
+        logger.info(
+            "Runtime Base.metadata.create_all() executed. "
+            "Consider using Alembic migrations for production schema changes."
+        )
 
 # Migration safety: Ensure message_id exists in attachment_resumes
 try:
@@ -136,11 +146,82 @@ bootstrap_super_admin()
 
 from app.core.standardized_route import StandardizedAPIRoute
 
+# ── IMAP Email Polling Background Task ─────────────────────────────────────
+from app.services.email_ingestion_service import fetch_resume_attachments
+
+async def _imap_polling_loop():
+    """Background coroutine that polls the IMAP inbox for resume attachments.
+
+    Runs only on the primary worker (WORKER_ID=0) to prevent duplicate
+    processing when multiple gunicorn workers are active.
+    """
+    while True:
+        try:
+            db = SessionLocal()
+
+            # Fetch global settings from DB
+            from app.domain.models import GlobalSettings
+            settings_records = db.query(GlobalSettings).all()
+            settings_dict = {s.key: s.value for s in settings_records}
+
+            auto_sync_enabled = settings_dict.get("auto_sync_enabled", "false").lower() == "true"
+
+            if auto_sync_enabled:
+                imap_email = settings_dict.get("imap_email") or settings.imap_email or ''
+                imap_password = settings_dict.get("imap_password") or settings.imap_password or ''
+
+                if imap_email and imap_password:
+                    fetch_resume_attachments(db, imap_email, imap_password)
+                else:
+                    logger.info("IMAP auto-sync skipped: IMAP credentials are not configured.")
+
+                from app.services.email_ingestion_service import run_batch_resume_processing
+                await run_batch_resume_processing(db)
+
+            db.close()
+            
+            # Record success timestamp
+            app.state.imap_last_success = time.time()
+            app.state.imap_last_error = None
+        except Exception as e:
+            logger.error(f"IMAP Polling Error: {e}")
+            # Record error
+            app.state.imap_last_error = str(e)
+            app.state.imap_last_error_time = time.time()
+
+        # Sleep 60 seconds to avoid getting blocked by Google IMAP limits.
+        await asyncio.sleep(60)
+
+
+@asynccontextmanager
+async def lifespan(app):
+    """Application lifespan: manages background tasks on startup/shutdown."""
+    # Startup — only the primary worker starts the IMAP polling loop.
+    polling_task = None
+    if os.environ.get("WORKER_ID", "0") == "0":
+        polling_task = asyncio.create_task(_imap_polling_loop())
+        logger.info("IMAP polling loop started (primary worker only).")
+    else:
+        logger.info("IMAP polling loop skipped (non-primary worker).")
+
+    yield  # ── Application runs here ──
+
+    # Shutdown — cleanly cancel the polling task.
+    if polling_task is not None:
+        polling_task.cancel()
+        try:
+            await polling_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("IMAP polling loop stopped.")
+
+
 app = FastAPI(
     title="HR Recruitment System API",
     description="AI-powered automated recruitment platform",
     version="1.0.0",
     redirect_slashes=True,
+    lifespan=lifespan,
     docs_url="/docs" if settings.env != "production" else None,
     redoc_url="/redoc" if settings.env != "production" else None,
     openapi_url="/openapi.json" if settings.env != "production" else None,
@@ -232,15 +313,29 @@ def health_check():
             supabase_status = "error"
     
     rate_limiter_status = "active" if getattr(app.state, "limiter", None) else "inactive"
+    
+    imap_status = "not_running"
+    if os.environ.get("WORKER_ID", "0") == "0":
+        last_success = getattr(app.state, "imap_last_success", 0)
+        last_error_time = getattr(app.state, "imap_last_error_time", 0)
+        
+        if last_error_time > last_success:
+            imap_status = f"error: {getattr(app.state, 'imap_last_error', 'unknown')}"
+        elif time.time() - last_success > 300 and last_success > 0:
+            imap_status = "stuck_or_delayed"
+        else:
+            imap_status = "ok"
+
     return {
-        "status": "ok",
-        "details": {
-            "db": db_status,
+        "status": "ok" if db_status == "ok" else "degraded",
+        "timestamp": datetime.utcnow().isoformat(),
+        "uptime_seconds": uptime_seconds,
+        "services": {
+            "database": db_status,
             "redis": redis_status,
             "supabase": supabase_status,
-            "uptime": uptime_seconds,
-            "env": settings.env,
-            "rate_limit": rate_limiter_status
+            "rate_limit": rate_limiter_status,
+            "imap_polling": imap_status
         }
     }
 
@@ -357,46 +452,3 @@ async def general_exception_handler(request: FastAPIRequest, exc: Exception):
 # Note:
 # This module must NOT start a server itself.
 # Entrypoint is enforced via `start.ps1` and `BACKEND_START_MODE=script`.
-
-
-import asyncio
-from app.services.email_ingestion_service import fetch_resume_attachments
-from app.infrastructure.database import SessionLocal
-import os
-
-async def imap_polling_loop():
-    while True:
-        try:
-            db = SessionLocal()
-            
-            # Fetch global settings from DB
-            from app.domain.models import GlobalSettings
-            settings_records = db.query(GlobalSettings).all()
-            settings_dict = {s.key: s.value for s in settings_records}
-            
-            auto_sync_enabled = settings_dict.get("auto_sync_enabled", "false").lower() == "true"
-            
-            if auto_sync_enabled:
-                # Fetch automatically using settings
-                imap_email = settings_dict.get("imap_email") or settings.imap_email or ''
-                imap_password = settings_dict.get("imap_password") or settings.imap_password or ''
-
-                if imap_email and imap_password:
-                    fetch_resume_attachments(db, imap_email, imap_password)
-                else:
-                    logger.info("IMAP auto-sync skipped: IMAP credentials are not configured.")
-
-                from app.services.email_ingestion_service import run_batch_resume_processing
-                await run_batch_resume_processing(db)
-            
-            db.close()
-        except Exception as e:
-            logger.error(f"IMAP Polling Error: {e}")
-        
-        # Sleep for 60 seconds (1 minute) to avoid getting blocked by Google IMAP limits.
-        await asyncio.sleep(60)
-
-@app.on_event("startup")
-async def startup_event():
-    # Start the continuous email ingestion loop
-    asyncio.create_task(imap_polling_loop())

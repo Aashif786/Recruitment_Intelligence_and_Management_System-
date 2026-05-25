@@ -62,6 +62,7 @@ pip-delete-this-directory.txt
 
 # Scratch scripts and temporary files in backend
 backend/scratch/
+backend/scratch_*.py
 backend/debug_emails/
 backend/batch_analysis_inbox/
 backend/check_*.py
@@ -70,6 +71,20 @@ backend/smtp_*.txt
 backend/output.txt
 backend/*.log
 backend/sample_aptitude.xlsx
+
+# Development utility scripts (not part of production codebase)
+backend/create_test_user.py
+backend/list_users.py
+backend/seed_test_data.py
+backend/reset_admin.py
+backend/verify_production.py
+backend/verify_readiness_suite.py
+backend/verification_report.md
+backend/tree_output.json
+
+# Frontend environment overrides (tracked via deployment, not git)
+frontend/.env.production
+frontend/.env.local
 
 # ------------------------------------------------------------------------------
 # Node / Frontend (Next.js)
