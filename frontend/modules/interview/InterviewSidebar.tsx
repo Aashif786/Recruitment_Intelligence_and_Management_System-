@@ -180,11 +180,6 @@ export default function InterviewSidebar({
                 );
             })}
 
-            <div className="pt-8 border-t border-slate-50">
-                <button className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-100 transition-colors">
-                    Report an Issue
-                </button>
-            </div>
         </div>
     );
 }

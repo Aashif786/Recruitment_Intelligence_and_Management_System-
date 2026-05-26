@@ -296,8 +296,8 @@ export default function HRDashboard() {
           bg="bg-amber-500/10"
         />
         <StatsCard
-          title="Offer Letters Sent"
-          subtitle="Candidates who received an offer"
+          title="Total Offers Sent"
+          subtitle="Total offer letters ever sent"
           value={r_metrics.offers_released}
           icon={CheckCircle}
           color="text-blue-600"

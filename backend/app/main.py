@@ -369,10 +369,6 @@ app.include_router(onboarding.router)
 app.include_router(repository.router)
 
 
-from app.linkedin_auth import router as linkedin_router
-app.include_router(linkedin_router, prefix="/auth")
-
-
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(request: FastAPIRequest, exc: RequestValidationError):
     errs = exc.errors()

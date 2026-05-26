@@ -48,10 +48,10 @@ class AnalyticsService:
             metrics_query = db.query(
                 func.count(Application.id).label("total_apps"),
                 func.count(case((Application.status.in_(['accepted', 'hired', 'onboarded']), Application.id))).label("hired_apps"),
-                func.count(case((Application.offer_sent == True, Application.id))).label("offered_apps"),
+                func.count(case((Offer.offer_sent == True, Application.id))).label("offered_apps"),
                 func.count(case((Application.status.in_(['accepted', 'hired', 'onboarded', 'rejected']), Application.id))).label("closed_apps"),
                 func.avg(case((Application.composite_score > 0, Application.composite_score))).label("avg_score")
-            )
+            ).outerjoin(Offer, Application.id == Offer.application_id)
             
             metrics_query = apply_filters(metrics_query)
             
@@ -110,7 +110,7 @@ class AnalyticsService:
                 'review_later': 'Review',
                 'physical_interview': 'Physical',
                 'pending_approval': 'Pending Approval',
-                'offer_sent': 'Offer Sent',
+                'offer_sent': 'Offer Sent (Pending)',
                 'accepted': 'Accepted',
                 'hired': 'Hired',
                 'onboarded': 'Onboarded',
@@ -120,7 +120,7 @@ class AnalyticsService:
             # Strict chronological order for the pipeline chart
             CHART_ORDER = [
                 'Applied', 'Screened', 'Aptitude', 'AI Interview', 'Interview completed',
-                'Review', 'Physical', 'Pending Approval', 'Offer Sent', 
+                'Review', 'Physical', 'Pending Approval', 'Offer Sent (Pending)', 
                 'Accepted', 'Hired', 'Onboarded', 'Rejected'
             ]
             
@@ -178,7 +178,7 @@ class AnalyticsService:
         
         # Hired Count and Offered Count
         hired_metrics = self.db.query(func.count(Application.id)).filter(Application.status.in_(['accepted', 'hired', 'onboarded'])).outerjoin(Job, Application.job_id == Job.id)
-        offered_metrics = self.db.query(func.count(Application.id)).filter(Application.offer_sent == True).outerjoin(Job, Application.job_id == Job.id)
+        offered_metrics = self.db.query(func.count(Application.id)).outerjoin(Offer, Application.id == Offer.application_id).filter(Offer.offer_sent == True).outerjoin(Job, Application.job_id == Job.id)
 
         if hr_id:
             app_metrics = app_metrics.filter(or_(Job.hr_id == hr_id, Application.hr_id == hr_id))
