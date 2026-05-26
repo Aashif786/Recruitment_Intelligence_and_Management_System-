@@ -27,3 +27,8 @@ proc_name = "ars_backend_prod"
 # Performance tuning
 max_requests = 1000
 max_requests_jitter = 50
+
+# Assign a unique 0-indexed WORKER_ID to each worker process
+def post_fork(server, worker):
+    os.environ["WORKER_ID"] = str(worker.age - 1)
+

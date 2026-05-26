@@ -32,4 +32,4 @@ ENV BACKEND_START_MODE=docker
 RUN addgroup --system app && adduser --system --ingroup app app
 USER app
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["gunicorn", "-c", "gunicorn_conf.py", "app.main:app"]
